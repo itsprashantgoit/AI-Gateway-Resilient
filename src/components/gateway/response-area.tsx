@@ -2,6 +2,7 @@
 "use client";
 
 import Image from 'next/image';
+import { Card } from '@/components/ui/card';
 
 interface ResponseAreaProps {
     response: any;
@@ -61,13 +62,13 @@ export function ResponseArea({ response }: ResponseAreaProps) {
     };
 
     const renderStreamedBoostResult = (result: any, request: any) => {
-        if (!result) {
+        if (!result || result.status === 'pending') {
             return <p className="text-gray-500">Waiting for response...</p>;
         }
-        if (result.status === 'rejected') {
+        if (result.status === 'rejected' || (result.status === 'counted' && !result.content)) {
             return (
                 <>
-                    <p className="text-red-500">Error: {result.content}</p>
+                    <p className="text-red-500">Error: {result.content || 'An unknown error occurred.'}</p>
                     {renderKey(result.keyId)}
                 </>
             )
@@ -76,22 +77,18 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         let keyId = result.keyId;
 
         if (request.type === 'chat') {
-            // Handle both full object response and simple string chunks
             const chatContent = (typeof result.content === 'object' && result.content !== null && result.content.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
             content = <p>{chatContent}</p>
         }
         else if (request.type === 'image') {
-            // Handle the nested structure for image data
             const imageContent = result.content?.data?.[0]?.b64_json;
-             if (result.content.keyId) {
+             if (result.content?.keyId) {
                 keyId = result.content.keyId;
             }
-            if (result.status === 'pending') {
-                 content = <p className="text-gray-500">Waiting for image...</p>;
-            } else if (imageContent) {
-                 content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
+            if (imageContent) {
+                 content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md" />
             } else {
                  content = <p className="text-gray-500">Processing image...</p>;
             }
@@ -132,12 +129,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                         {response.results.map((result: any, index: number) => {
                              const request = response.requests[index];
                              return (
-                                <div key={index} className="p-4 border rounded-lg shadow-md flex flex-col">
-                                    <p className="font-bold text-sm text-green-600 border-b pb-2 mb-2 font-mono truncate" title={request.prompt}>
+                                <Card key={index} className="p-4 flex flex-col">
+                                    <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    <div className="flex-grow flex flex-col justify-center items-center">{renderBoostResult(result, request)}</div>
-                                </div>
+                                    <div className="flex-grow flex flex-col justify-center items-center text-center">{renderBoostResult(result, request)}</div>
+                                </Card>
                              )
                         })}
                     </div>
@@ -148,12 +145,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                         {response.results.map((result: any, index: number) => {
                              const request = response.requests[index];
                              return (
-                                <div key={index} className="p-4 border rounded-lg shadow-md flex flex-col">
-                                    <p className="font-bold text-sm text-green-600 border-b pb-2 mb-2 font-mono truncate" title={request.prompt}>
+                                <Card key={index} className="p-4 flex flex-col">
+                                    <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    <div className="flex-grow flex flex-col justify-center items-center">{renderStreamedBoostResult(result, request)}</div>
-                                </div>
+                                    <div className="flex-grow flex flex-col justify-center items-center text-center">{renderStreamedBoostResult(result, request)}</div>
+                                </Card>
                              )
                         })}
                     </div>

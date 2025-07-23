@@ -67,6 +67,9 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             while (true) {
                const { done, value } = await reader.read();
                if (done) {
+                   if(receivedResults === requests.length) {
+                       setStatus({ message: 'Image generation complete!', type: 'success' });
+                   }
                    break;
                }
 
@@ -77,7 +80,10 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                    if (line.trim().startsWith('data:')) {
                        const data = line.substring(5).trim();
                        if (data === '[DONE]') {
-                           break;
+                           if(receivedResults === requests.length) {
+                               setStatus({ message: 'Image generation complete!', type: 'success' });
+                           }
+                           continue;
                        }
                        try {
                            const json = JSON.parse(data);
@@ -94,10 +100,16 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
 
                            if (status === 'fulfilled') {
                                 boosterResults[index].content = content;
-                                receivedResults++;
+                                if(boosterResults[index].status !== 'counted') {
+                                   receivedResults++;
+                                   boosterResults[index].status = 'counted'; 
+                                }
                            } else if (status === 'rejected') {
                                boosterResults[index].content = reason.message || 'Unknown error';
-                               receivedResults++;
+                               if(boosterResults[index].status !== 'counted') {
+                                   receivedResults++;
+                                   boosterResults[index].status = 'counted';
+                               }
                            }
 
                            setResponse((prev: any) => ({
@@ -111,9 +123,6 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                        }
                    }
                }
-                if (receivedResults === requests.length) {
-                    setStatus({ message: 'Image generation complete!', type: 'success' });
-                }
             }
         } catch (error: any) {
             console.error('Image Studio Fetch Error:', error);
