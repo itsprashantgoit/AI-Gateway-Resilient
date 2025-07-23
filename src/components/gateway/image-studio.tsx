@@ -83,36 +83,29 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                            const json = JSON.parse(data);
                            const { index, status, content, reason, keyId } = json;
                            
-                           if (boosterResults[index] === null) {
-                               boosterResults[index] = { status: 'pending', content: '', keyId: '' };
-                           }
-                           
-                           boosterResults[index].status = status;
-                           boosterResults[index].keyId = keyId;
-
-                           if (status === 'fulfilled') {
-                                boosterResults[index].content = content;
-                                receivedResults++;
-                           } else if (status === 'rejected') {
-                               boosterResults[index].content = reason.message || 'Unknown error';
-                               receivedResults++;
-                           }
+                           boosterResults[index] = {
+                               status: status,
+                               content: status === 'fulfilled' ? content : (reason?.message || 'Unknown error'),
+                               keyId: keyId,
+                           };
 
                            setResponse((prev: any) => ({
                                ...prev,
                                results: [...boosterResults]
                            }));
 
+                           if (status === 'fulfilled' || status === 'rejected') {
+                                receivedResults++;
+                           }
 
                        } catch(e) {
                            console.log('Skipping incomplete JSON chunk in image studio:', data);
                        }
                    }
                }
-               if (receivedResults === requests.length) {
-                   setStatus({ message: 'Image generation complete!', type: 'success' });
-                   break; 
-               }
+            }
+             if (receivedResults === requests.length) {
+                setStatus({ message: 'Image generation complete!', type: 'success' });
             }
         } catch (error: any) {
             console.error('Image Studio Fetch Error:', error);

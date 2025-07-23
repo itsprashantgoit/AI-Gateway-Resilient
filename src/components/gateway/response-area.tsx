@@ -63,7 +63,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
 
     const renderStreamedBoostResult = (result: any, request: any) => {
         if (!result || result.status === 'pending') {
-            return <p className="text-gray-500">Waiting for image...</p>;
+            return <p className="text-gray-500">Waiting for response...</p>;
         }
         if (result.status === 'rejected') {
             return (
@@ -81,9 +81,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
              const chatContent = (result.status === 'fulfilled' && result.content?.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
-            content = <p>{chatContent}</p>
+            content = <p className="whitespace-pre-wrap">{chatContent}</p>
         }
-        else if (request.type === 'image') {
+        else if (request.type === 'image' && result.status === 'fulfilled') {
             const imageContent = result.content?.data?.[0]?.b64_json;
             
             if (result.content?.keyId) {
@@ -92,19 +92,18 @@ export function ResponseArea({ response }: ResponseAreaProps) {
 
             if (imageContent) {
                  content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md" />
-            } else if (result.status === 'fulfilled') {
+            } else {
                  content = <p className="text-red-500">Error: Could not parse image.</p>;
             }
-            else {
-                 content = <p className="text-gray-500">Processing image...</p>;
-            }
+        } else if (result.status === 'streaming') {
+            content = <p className="whitespace-pre-wrap">{result.content}</p>;
         } else {
-            content = <p>{result.content}</p>;
+            content = <p className="text-gray-500">Processing...</p>
         }
 
         return (
             <>
-                {content}
+                <div className="flex-grow flex items-center justify-center">{content}</div>
                 {renderKey(keyId)}
             </>
         )
@@ -155,7 +154,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                                     <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    <div className="flex-grow flex flex-col justify-center items-center text-center">{renderStreamedBoostResult(result, request)}</div>
+                                    <div className="flex-grow flex flex-col justify-center items-center text-center h-full">{renderStreamedBoostResult(result, request)}</div>
                                 </Card>
                              )
                         })}
