@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import type { Model } from './models';
 
 interface BoosterProps {
@@ -49,6 +51,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
     const [promptGroups, setPromptGroups] = useState<BoosterPrompt[]>([
         { id: `group-${Date.now()}`, prompt: '', modelId: models[0].id }
     ]);
+    const [stream, setStream] = useState(true);
 
     const addBoosterPromptGroup = () => {
         setPromptGroups(prev => [...prev, { id: `group-${Date.now()}`, prompt: '', modelId: models[0].id }]);
@@ -67,11 +70,13 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
             .filter(g => g.prompt.trim())
             .map(g => {
                 const model = models.find(m => m.id === g.modelId);
+                const isChat = model?.type === 'chat';
                 return {
                     prompt: g.prompt,
                     model: g.modelId,
                     type: model?.type,
-                    steps: model?.steps
+                    steps: model?.steps,
+                    stream: isChat ? stream : undefined, // Only add stream for chat models
                 };
             });
         
@@ -120,6 +125,10 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                         removeGroup={removeBoosterPromptGroup}
                     />
                 ))}
+            </div>
+            <div className="flex items-center space-x-2 my-2">
+                <Checkbox id="boosterStreamCheckbox" checked={stream} onCheckedChange={(checked) => setStream(Boolean(checked))} />
+                <Label htmlFor="boosterStreamCheckbox">Stream Responses</Label>
             </div>
             <div className="flex gap-2 mt-2">
               <Button onClick={addBoosterPromptGroup}>Add Prompt</Button>

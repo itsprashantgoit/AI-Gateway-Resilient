@@ -17,7 +17,7 @@ function getNextKey() {
 }
 
 async function makeRequest(request: any) {
-    const { model, prompt, type, steps } = request;
+    const { model, prompt, type, steps, stream } = request;
     const apiKey = getNextKey();
     const headers = {
         'Authorization': `Bearer ${apiKey}`,
@@ -25,22 +25,23 @@ async function makeRequest(request: any) {
     };
 
     let url: string;
-    let body: string;
+    let body: any;
 
     if (type === 'chat') {
         url = `${TOGETHER_API_BASE_URL}chat/completions`;
-        body = JSON.stringify({
+        body = {
             model: model,
             messages: [{ role: 'user', content: prompt }],
-        });
+            stream: stream,
+        };
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
-        body = JSON.stringify({
+        body = {
             model: model,
             prompt: prompt,
             n: 1,
             steps: steps,
-        });
+        };
     } else {
         throw new Error(`Unsupported model type: ${type}`);
     }
@@ -48,15 +49,63 @@ async function makeRequest(request: any) {
     const response = await fetch(url, {
         method: 'POST',
         headers,
-        body
+        body: JSON.stringify(body),
+        // @ts-expect-error
+        duplex: 'half',
     });
-    
-    const data = await response.json();
 
     if (!response.ok) {
-        throw data.error || new Error(`API request failed with status ${response.status}`);
+        const errorBody = await response.json();
+        throw errorBody.error || new Error(`API request failed with status ${response.status}`);
     }
     
+    if (type === 'chat' && stream) {
+        if (!response.body) {
+            throw new Error("Stream response body is null");
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResponse = "";
+        let finalData: any = null;
+
+        while(true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (line.trim().startsWith('data:')) {
+                    const data = line.substring(5).trim();
+                    if (data === '[DONE]') {
+                        break;
+                    }
+                    try {
+                        const json = JSON.parse(data);
+                        if (!finalData) {
+                            finalData = json;
+                            finalData.choices = [{ message: { content: ""}}];
+                        }
+                        if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                           fullResponse += json.choices[0].delta.content;
+                        }
+                    } catch (e) {
+                        // ignore incomplete json
+                    }
+                }
+            }
+        }
+        if (finalData) {
+            finalData.choices[0].message.content = fullResponse;
+            return finalData;
+        } else {
+            throw new Error("Failed to process stream");
+        }
+    }
+
+
+    const data = await response.json();
     return data;
 }
 
