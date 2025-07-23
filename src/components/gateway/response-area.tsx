@@ -71,7 +71,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 if (b64_json) {
                     content = <Image src={`data:image/png;base64,${b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
                     actions = (
-                         <Button variant="ghost" size="sm" onClick={() => handleDownload(b64_json, `image_${result.keyId}.png`)}>
+                         <Button variant="ghost" size="sm" onClick={() => handleDownload(b64_json, `image_${value.keyId}.png`)}>
                             <Download className="h-4 w-4 mr-1" />
                             Download
                         </Button>
@@ -114,10 +114,8 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         if (result.status === 'rejected') {
             content = <p className="text-red-500">Error: {result.content || 'An unknown error occurred.'}</p>;
         } else if (request.type === 'chat') {
-            const chatContent = (result.status === 'fulfilled' && result.content?.choices)
-                ? result.content.choices[0].message.content
-                : result.content;
-            content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>
+            const chatContent = result.content;
+            content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>;
             if (result.status !== 'streaming') {
                  actions = (
                     <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent)}>
