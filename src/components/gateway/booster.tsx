@@ -20,58 +20,55 @@ interface BoosterProps {
 
 interface DynamicPrompt {
     id: number;
-    prompt: string;
+    prompts: string; // Changed from prompt to prompts
     modelId: string;
 }
 
 export function Booster({ models, setStatus, setResponse, setIsLoading, isLoading }: BoosterProps) {
-    const [prompts, setPrompts] = useState('');
-    const [modelId, setModelId] = useState<string | undefined>(models[0]?.id);
+    const [mainPrompts, setMainPrompts] = useState('');
+    const [mainModelId, setMainModelId] = useState<string | undefined>(models[0]?.id);
     const [stream, setStream] = useState(true);
     const [dynamicPrompts, setDynamicPrompts] = useState<DynamicPrompt[]>([]);
 
     const addDynamicPrompt = () => {
-        setDynamicPrompts([...dynamicPrompts, { id: Date.now(), prompt: '', modelId: models[0]?.id || '' }]);
+        setDynamicPrompts([...dynamicPrompts, { id: Date.now(), prompts: '', modelId: models[0]?.id || '' }]);
     };
 
     const removeDynamicPrompt = (id: number) => {
         setDynamicPrompts(dynamicPrompts.filter(p => p.id !== id));
     };
 
-    const handleDynamicPromptChange = (id: number, field: 'prompt' | 'modelId', value: string) => {
+    const handleDynamicPromptChange = (id: number, field: 'prompts' | 'modelId', value: string) => {
         setDynamicPrompts(dynamicPrompts.map(p => p.id === id ? { ...p, [field]: value } : p));
     };
 
 
     const handleBoost = async () => {
-        const textareaPrompts = prompts.split('\n').filter(p => p.trim());
-        if (!modelId && textareaPrompts.length > 0) {
-            alert('Please select a model for the text area prompts.');
-            return;
-        }
+        const modelForTextarea = models.find(m => m.id === mainModelId);
 
-        const modelForTextarea = models.find(m => m.id === modelId);
-
-        const requestsFromTextarea = textareaPrompts.map(prompt => ({
-            prompt,
-            model: modelId,
-            type: modelForTextarea?.type,
-            steps: modelForTextarea?.steps,
-            stream: modelForTextarea?.type === 'chat' ? stream : undefined,
-        }));
+        const requestsFromTextarea = mainPrompts.split('\n')
+            .filter(p => p.trim())
+            .map(prompt => ({
+                prompt,
+                model: mainModelId,
+                type: modelForTextarea?.type,
+                steps: modelForTextarea?.steps,
+                stream: modelForTextarea?.type === 'chat' ? stream : undefined,
+            }));
         
         const requestsFromDynamic = dynamicPrompts
-          .filter(p => p.prompt.trim())
-          .map(p => {
-              const model = models.find(m => m.id === p.modelId);
-              return {
-                  prompt: p.prompt,
-                  model: p.modelId,
-                  type: model?.type,
-                  steps: model?.steps,
-                  stream: model?.type === 'chat' ? stream : undefined
-              }
-          });
+            .flatMap(p => {
+                const model = models.find(m => m.id === p.modelId);
+                return p.prompts.split('\n')
+                    .filter(prompt => prompt.trim())
+                    .map(prompt => ({
+                        prompt: prompt,
+                        model: p.modelId,
+                        type: model?.type,
+                        steps: model?.steps,
+                        stream: model?.type === 'chat' ? stream : undefined
+                    }))
+            });
         
         const requests = [...requestsFromTextarea, ...requestsFromDynamic];
 
@@ -142,7 +139,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                                             newResults[index].content += content;
                                             break;
                                         case 'fulfilled':
-                                            newResults[index].status = 'fulfilled';
+                                            newResults[index].status = 'fulfilled'; // Correctly set status
                                             if (json.type === 'chat' && content && content.choices) {
                                                 newResults[index].content = content.choices[0].message.content;
                                             } else {
@@ -197,12 +194,12 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
     return (
         <div className="mb-8 p-4 border rounded-lg">
             <h2 className="text-xl font-semibold mb-2">Booster</h2>
-            <p className="text-sm text-muted-foreground mb-4">Send multiple chat prompts.</p>
+            <p className="text-sm text-muted-foreground mb-4">Send multiple chat prompts in batches.</p>
             
             <div className="grid gap-4 p-4 border rounded-lg mb-4">
                  <div>
-                    <Label htmlFor="booster-model-select">Chat Model for Text Area Prompts</Label>
-                    <Select onValueChange={setModelId} defaultValue={modelId}>
+                    <Label htmlFor="booster-model-select">Chat Model for Main Prompt Area</Label>
+                    <Select onValueChange={setMainModelId} defaultValue={mainModelId}>
                         <SelectTrigger id="booster-model-select">
                             <SelectValue placeholder="Select a chat model" />
                         </SelectTrigger>
@@ -216,19 +213,19 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                     </Select>
                 </div>
                 <div>
-                    <Label>Prompts (one per line)</Label>
+                    <Label>Main Prompts (one per line)</Label>
                     <Textarea
                         placeholder="Enter prompts here, one on each line..."
-                        value={prompts}
-                        onChange={(e) => setPrompts(e.target.value)}
+                        value={mainPrompts}
+                        onChange={(e) => setMainPrompts(e.target.value)}
                         className="my-2"
                         rows={3}
                     />
                 </div>
             </div>
 
-            {dynamicPrompts.map((p, index) => (
-                <div key={p.id} className="grid grid-cols-[1fr_auto_auto] gap-2 items-start p-4 border rounded-lg mb-4">
+            {dynamicPrompts.map((p) => (
+                <div key={p.id} className="grid grid-cols-[1fr_auto] gap-2 items-start p-4 border rounded-lg mb-4">
                     <div className="flex flex-col gap-2">
                          <Label htmlFor={`dp-model-${p.id}`}>Model</Label>
                          <Select onValueChange={(value) => handleDynamicPromptChange(p.id, 'modelId', value)} defaultValue={p.modelId}>
@@ -243,13 +240,13 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                                 ))}
                             </SelectContent>
                         </Select>
-                         <Label htmlFor={`dp-prompt-${p.id}`}>Prompt</Label>
+                         <Label htmlFor={`dp-prompt-${p.id}`}>Prompts (one per line)</Label>
                         <Textarea
                             id={`dp-prompt-${p.id}`}
-                            placeholder="Enter prompt..."
-                            value={p.prompt}
-                            onChange={(e) => handleDynamicPromptChange(p.id, 'prompt', e.target.value)}
-                            rows={2}
+                            placeholder="Enter prompts for this group, one on each line..."
+                            value={p.prompts}
+                            onChange={(e) => handleDynamicPromptChange(p.id, 'prompts', e.target.value)}
+                            rows={3}
                         />
                     </div>
                      <Button variant="ghost" size="icon" onClick={() => removeDynamicPrompt(p.id)} className="self-center mt-6">
@@ -259,7 +256,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
             ))}
 
             <div className="flex items-center justify-between mt-4">
-                 <Button variant="outline" onClick={addDynamicPrompt}>Add Prompt</Button>
+                 <Button variant="outline" onClick={addDynamicPrompt}>Add Prompt Group</Button>
                  <div className="flex items-center space-x-2">
                     <Checkbox id="boosterStreamCheckbox" checked={stream} onCheckedChange={(checked) => setStream(Boolean(checked))} />
                     <Label htmlFor="boosterStreamCheckbox">Stream Responses</Label>
@@ -268,7 +265,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
 
 
             <div className="flex gap-2 mt-4">
-              <Button onClick={handleBoost} disabled={isLoading || (!prompts.trim() && dynamicPrompts.every(p => !p.prompt.trim()))}>Boost Prompts</Button>
+              <Button onClick={handleBoost} disabled={isLoading || (!mainPrompts.trim() && dynamicPrompts.every(p => !p.prompts.trim()))}>Boost Prompts</Button>
             </div>
         </div>
     )
