@@ -33,6 +33,7 @@ async function makeRequest(request: any, key: any) {
         body = {
             model: model,
             messages: [{ role: 'user', content: prompt }],
+            stream: request.stream,
         };
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
@@ -60,10 +61,11 @@ async function makeRequest(request: any, key: any) {
         let errorMessage;
         const resText = await res.text();
         try {
+            // Try to parse as JSON, but fallback to raw text if it's not
             errorBody = JSON.parse(resText);
             errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || resText;
         } catch (e) {
-            errorMessage = resText;
+            errorMessage = resText; // The response was not JSON (e.g., HTML error page)
         }
 
         let specificError = `API Error (Status ${res.status})`;
@@ -76,8 +78,9 @@ async function makeRequest(request: any, key: any) {
             case 429: specificError = `429 - Rate Limit Exceeded: Too many requests.`; break;
             case 500: specificError = `500 - Server Error: Issue on provider's side.`; break;
             case 503: specificError = `503 - Engine Overloaded: High traffic on provider's side.`; break;
+            default: specificError += `: ${errorMessage}`; break;
         }
-
+        // This throw will be caught by the Promise.allSettled logic
         throw new Error(specificError);
     }
     
@@ -93,25 +96,32 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid 'requests' field. Expected an array." }, { status: 400 });
     }
     
+    // Non-streaming path (for Image Studio and non-streamed Booster)
     if (!streamAll) {
        const promises = requests.map(async (r: any) => {
-         let key;
          try {
-           key = getNextKey();
+           const key = getNextKey();
            const value = await makeRequest(r, key);
-           return { status: 'fulfilled', value };
+           // Add keyId to the fulfilled value for the frontend
+           return { status: 'fulfilled', value: { ...value, keyId: key.keyId }};
          } catch (error: any) {
-           return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId: key?.keyId || 'unknown' } };
+           // The error from makeRequest is caught here
+           const keyId = 'unknown'; // In case getNextKey() also fails
+           return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId } };
          }
        });
+
+       // Use Promise.allSettled to ensure we never crash the server
        const results = await Promise.allSettled(promises);
-       const finalResults = results.map(r => {
-            if (r.status === 'fulfilled') {
-                return r.value.value; 
+
+       const finalResults = results.map(promiseResult => {
+            if (promiseResult.status === 'fulfilled') {
+                return promiseResult.value; 
             } else {
+                // The promise was rejected, return the reason
                 return { 
                     status: 'rejected', 
-                    reason: r.reason.reason || { message: 'An unknown error occurred during promise settlement.' }
+                    reason: promiseResult.reason.reason || { message: 'An unknown error occurred during promise settlement.' }
                 };
             }
        });
