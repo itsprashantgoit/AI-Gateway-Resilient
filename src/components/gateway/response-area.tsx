@@ -63,7 +63,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
 
     const renderStreamedBoostResult = (result: any, request: any) => {
         if (!result || result.status === 'pending') {
-            return <p className="text-gray-500">Waiting for response...</p>;
+            return <p className="text-gray-500">Waiting for image...</p>;
         }
         if (result.status === 'rejected') {
             return (
@@ -73,20 +73,23 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 </>
             )
         }
+
         let content;
         let keyId = result.keyId;
 
         if (request.type === 'chat') {
-            const chatContent = (result.status === 'fulfilled' && result.content?.choices)
+             const chatContent = (result.status === 'fulfilled' && result.content?.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
             content = <p>{chatContent}</p>
         }
         else if (request.type === 'image') {
             const imageContent = result.content?.data?.[0]?.b64_json;
-             if (result.content?.keyId) {
+            
+            if (result.content?.keyId) {
                 keyId = result.content.keyId;
             }
+
             if (imageContent) {
                  content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md" />
             } else if (result.status === 'fulfilled') {
@@ -96,7 +99,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                  content = <p className="text-gray-500">Processing image...</p>;
             }
         } else {
-            content = null;
+            content = <p>{result.content}</p>;
         }
 
         return (
