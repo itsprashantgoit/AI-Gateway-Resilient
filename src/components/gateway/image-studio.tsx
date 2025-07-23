@@ -3,10 +3,11 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import type { Model } from './models';
+import { X, PlusCircle } from 'lucide-react';
 
 interface ImageStudioProps {
     models: Model[];
@@ -17,15 +18,30 @@ interface ImageStudioProps {
 }
 
 export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLoading }: ImageStudioProps) {
-    const [prompts, setPrompts] = useState('');
+    const [prompts, setPrompts] = useState<string[]>(['']);
     const [modelId, setModelId] = useState<string | undefined>(models[0]?.id);
+    
+    const handlePromptChange = (index: number, value: string) => {
+        const newPrompts = [...prompts];
+        newPrompts[index] = value;
+        setPrompts(newPrompts);
+    };
+
+    const addPrompt = () => {
+        setPrompts([...prompts, '']);
+    };
+
+    const removePrompt = (index: number) => {
+        const newPrompts = prompts.filter((_, i) => i !== index);
+        setPrompts(newPrompts);
+    };
 
     const handleGenerate = async () => {
         if (!modelId) {
             alert('Please select an image model.');
             return;
         }
-        const promptList = prompts.split('\n').filter(p => p.trim());
+        const promptList = prompts.filter(p => p.trim());
         if (promptList.length === 0) {
             alert('Please enter at least one prompt.');
             return;
@@ -44,8 +60,7 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
         setIsLoading(true);
         setStatus({ message: `Generating ${requests.length} images...`, type: '' });
         
-        const initialResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
-        setResponse({ type: 'boost_stream', results: initialResults, requests });
+        setResponse({ type: 'boost_stream', results: Array(requests.length).fill(null), requests });
 
         const headers = { 'Content-Type': 'application/json' };
         const body = JSON.stringify({ requests, stream: true });
@@ -63,8 +78,8 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            
             let receivedCount = 0;
-
             const processStream = async () => {
               while (true) {
                  const { done, value } = await reader.read();
@@ -131,7 +146,7 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
     return (
         <div className="mb-8 p-4 border rounded-lg">
             <h2 className="text-xl font-semibold mb-2">Image Studio</h2>
-            <p className="text-sm text-muted-foreground mb-4">Bulk generate images by entering one prompt per line.</p>
+            <p className="text-sm text-muted-foreground mb-4">Bulk generate images.</p>
             <div className="grid gap-4">
                 <div>
                     <Label htmlFor="image-model-select">Image Model</Label>
@@ -149,20 +164,32 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                     </Select>
                 </div>
                 <div>
-                    <Label htmlFor="image-prompts-textarea">Prompts (one per line)</Label>
-                    <Textarea
-                        id="image-prompts-textarea"
-                        placeholder="A photorealistic cat astronaut on the moon
-A synthwave sunset over a futuristic city
-A detailed watercolor of a forest stream"
-                        value={prompts}
-                        onChange={(e) => setPrompts(e.target.value)}
-                        rows={5}
-                    />
+                    <Label>Prompts</Label>
+                    <div className="space-y-2">
+                        {prompts.map((prompt, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                                <Input
+                                    type="text"
+                                    placeholder={`Prompt ${index + 1}`}
+                                    value={prompt}
+                                    onChange={(e) => handlePromptChange(index, e.target.value)}
+                                />
+                                {prompts.length > 1 && (
+                                    <Button variant="ghost" size="icon" onClick={() => removePrompt(index)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                     <Button variant="outline" size="sm" onClick={addPrompt} className="mt-2">
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Add Prompt
+                    </Button>
                 </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <Button onClick={handleGenerate} disabled={isLoading || !prompts.trim() || !modelId}>Generate Images</Button>
+              <Button onClick={handleGenerate} disabled={isLoading || prompts.every(p => !p.trim()) || !modelId}>Generate Images</Button>
             </div>
         </div>
     )
