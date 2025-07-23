@@ -69,7 +69,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                  const reader = response.body.getReader();
                  const decoder = new TextDecoder();
 
-                 let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
+                 let buffer = '';
 
                  while (true) {
                     const { done, value } = await reader.read();
@@ -78,8 +78,9 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                         break;
                     }
 
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split('\n\n');
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || ''; // Keep the last, potentially incomplete line
 
                     for (const line of lines) {
                         if (line.trim().startsWith('data:')) {
@@ -92,27 +93,40 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                                 const { index, status, content, reason, keyId } = json;
                                 
                                 setResponse((prev: any) => {
+                                    if (!prev || !prev.results) return prev;
                                     const newResults = [...prev.results];
+
+                                    // Initialize result object if it's the first message for this index
                                     if (newResults[index] === null) {
                                         newResults[index] = { status: 'pending', content: '', keyId: '' };
                                     }
-                                    if(newResults[index].status === 'pending') {
-                                       newResults[index].status = status;
-                                    }
-                                    newResults[index].keyId = keyId;
 
-                                    if (status === 'streaming') {
-                                        newResults[index].content += content;
-                                    } else if (status === 'fulfilled') {
-                                       if(typeof content === 'object' && content.choices) {
-                                            newResults[index].content = content.choices[0].message.content;
-                                        } else {
-                                            newResults[index].content = content;
-                                        }
-                                    } else if (status === 'rejected') {
-                                        newResults[index].status = 'rejected';
-                                        newResults[index].content = reason.message || 'Unknown error';
+                                    // Always update keyId if available
+                                    if (keyId) {
+                                      newResults[index].keyId = keyId;
                                     }
+
+                                    // Update content and status based on message type
+                                    switch(status) {
+                                        case 'streaming':
+                                            newResults[index].status = 'streaming';
+                                            newResults[index].content += content;
+                                            break;
+                                        case 'fulfilled':
+                                            newResults[index].status = 'fulfilled';
+                                            // The final content comes in the 'content' field of the fulfilled message
+                                            if(typeof content === 'object' && content && content.choices) {
+                                                newResults[index].content = content.choices[0].message.content;
+                                            } else {
+                                                newResults[index].content = content; // Fallback for other data types
+                                            }
+                                            break;
+                                        case 'rejected':
+                                            newResults[index].status = 'rejected';
+                                            newResults[index].content = reason.message || 'Unknown error';
+                                            break;
+                                    }
+
                                     return { ...prev, results: newResults };
                                 });
 
