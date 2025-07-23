@@ -77,7 +77,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         let keyId = result.keyId;
 
         if (request.type === 'chat') {
-            const chatContent = (typeof result.content === 'object' && result.content !== null && result.content.choices)
+             const chatContent = (result.status === 'fulfilled' && result.content?.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
             content = <p>{chatContent}</p>
