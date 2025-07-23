@@ -31,7 +31,8 @@ export async function POST(req: Request) {
     model,
     prompt,
     n,
-    steps
+    steps,
+    response_format: "b64_json"
   });
   
   try {
@@ -39,17 +40,15 @@ export async function POST(req: Request) {
       method: 'POST',
       headers,
       body,
-      // @ts-expect-error
-      duplex: 'half'
     });
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Upstream API Error:", errorBody);
-        return new NextResponse(errorBody, { status: response.status, headers: {'Content-Type': 'application/json'} });
-    }
-
     const data = await response.json();
+
+    if (!response.ok) {
+        console.error("Upstream API Error:", data);
+        return new NextResponse(JSON.stringify(data), { status: response.status, headers: {'Content-Type': 'application/json'} });
+    }
+    
     return NextResponse.json({ ...data, keyId: keyInfo.keyId });
 
   } catch (error: any) {

@@ -72,6 +72,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
+                let keyId = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -85,12 +86,13 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                     buffer = lines.pop() || ''; // Keep the last, potentially incomplete line
                     
                     for (const line of lines) {
-                         if (line.trim().startsWith('event: key')) {
+                        if (line.trim().startsWith('event: key')) {
                             const dataLine = lines.find(l => l.startsWith('data:'));
                             if(dataLine) {
                                 const data = dataLine.substring(5).trim();
                                 try {
                                     const json = JSON.parse(data);
+                                    keyId = json.keyId;
                                     setResponse((prev: any) => ({ ...prev, type: 'chat', keyId: json.keyId }));
                                 } catch (e) {
                                     console.log("Error parsing keyId from stream", data);
@@ -107,7 +109,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                                 const json = JSON.parse(data);
                                 if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                     fullResponse += json.choices[0].delta.content;
-                                    setResponse((prev: any) => ({ ...prev, type: 'chat', content: fullResponse }));
+                                    setResponse((prev: any) => ({ ...prev, type: 'chat', content: fullResponse, keyId }));
                                 }
                             } catch (e) {
                                 // This can happen with incomplete JSON objects, so we'll just log and continue
