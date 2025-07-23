@@ -1,1 +1,152 @@
-
+[
+    {
+      "keyId": "together-ai-CartoonKeeda",
+      "apiKey": "tgp_v1_fIg_qVDqihEaY5SSBQzx_CSFFHA2w_W1faFCIHjcn3Y",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-itspg",
+      "apiKey": "tgp_v1_nU0xsEVawSO2Gk66Q_IM7DLsLcQ5HFH36KTmtrD9ME4",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-OneLastTry",
+      "apiKey": "tgp_v1_MVngo4oDIOXZdedYMSW3CnoY2XkKWLf5k9YQAyMUjf8",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-SilentHustle",
+      "apiKey": "tgp_v1_DtPBgpNq2wSmwzMMnaq0hHTxRP7qeu4y9DnTE0Izu80",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-pgCAN",
+      "apiKey": "tgp_v1_EUHOklglfPyZTqt3mannWAg1Oe10IKrQkV1TCHPPrKc",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-MRGEdits",
+      "apiKey": "tgp_v1_xDIvrbvV_F2LyTDRjYXfvRD3TcI-JoG50dTx-jZvvbY",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-PTY49",
+      "apiKey": "tgp_v1_xgieCS82MlcfiP0749XX9oSGaNlmB17UkhsLZsSA9N8",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-ShopsterZone",
+      "apiKey": "tgp_v1_YRCuEbdYFCXWpOgOfLuR19p_XjM5ViS2hw26J3kj-Rc",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-ForeignSTH",
+      "apiKey": "tgp_v1_i4-n77n9O2pA9e_56IbZkdHHdvFAcq23FSqzCAy75ng",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-SerialZilla",
+      "apiKey": "tgp_v1_Lo_8oeMwLm4cF20hLOqsevkzsjkxKSrnstL8yFtj_ew",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    }
+  ]
