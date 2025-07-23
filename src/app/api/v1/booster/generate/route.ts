@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid 'requests' field. Expected an array." }, { status: 400 });
     }
     
-    // Non-streaming path (for Image Studio and non-streamed Booster)
+    // Non-streaming path
     if (!streamAll) {
        const promises = requests.map(async (r: any) => {
          try {
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
        return NextResponse.json(finalResults);
     }
     
-    // Streaming path for Booster (chat only)
+    // Streaming path for Booster and Image Studio
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -137,81 +137,82 @@ export async function POST(req: NextRequest) {
           let key;
           try {
             key = getNextKey();
-            if (request.type !== 'chat') {
-                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: 'Streaming is only supported for chat models.' }, keyId: key.keyId })}\n\n`));
-                 return;
-            }
 
-            const fetchOptions: RequestInit = {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${key.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                 body: JSON.stringify({
-                    model: request.model,
-                    messages: [{ role: 'user', content: request.prompt }],
-                    stream: true,
-                }),
-                // @ts-expect-error
-                duplex: 'half',
-            };
-            const response = await fetch(`${TOGETHER_API_BASE_URL}chat/completions`, fetchOptions);
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                let errorBody;
-                try {
-                    errorBody = JSON.parse(errorText);
-                } catch(e) {
-                    errorBody = { error: { message: errorText } };
+            if (request.type === 'chat') {
+                if (!request.stream) {
+                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: 'Streaming is only supported for chat models with stream enabled.' }, keyId: key.keyId })}\n\n`));
+                     return;
                 }
-                throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${response.status}`);
-            }
+                const fetchOptions: RequestInit = {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${key.apiKey}`,
+                        'Content-Type': 'application/json'
+                    },
+                     body: JSON.stringify({
+                        model: request.model,
+                        messages: [{ role: 'user', content: request.prompt }],
+                        stream: true,
+                    }),
+                    // @ts-expect-error
+                    duplex: 'half',
+                };
+                const response = await fetch(`${TOGETHER_API_BASE_URL}chat/completions`, fetchOptions);
 
-            if (request.type === 'chat' && request.stream && response.body) {
-              const reader = response.body.getReader();
-              const decoder = new TextDecoder();
-              let fullResponse = "";
-              let finalData: any = null;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    let errorBody;
+                    try {
+                        errorBody = JSON.parse(errorText);
+                    } catch(e) {
+                        errorBody = { error: { message: errorText } };
+                    }
+                    throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${response.status}`);
+                }
+                
+                if (response.body) {
+                  const reader = response.body.getReader();
+                  const decoder = new TextDecoder();
+                  let fullResponse = "";
+                  let finalData: any = null;
 
-              while(true) {
-                  const {done, value} = await reader.read();
-                  if (done) {
-                      if (finalData) {
-                          finalData.choices[0].message.content = fullResponse;
-                           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData, keyId: key.keyId })}\n\n`));
-                      }
-                      break;
-                  };
+                  while(true) {
+                      const {done, value} = await reader.read();
+                      if (done) {
+                          if (finalData) {
+                              finalData.choices[0].message.content = fullResponse;
+                               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData, keyId: key.keyId })}\n\n`));
+                          }
+                          break;
+                      };
 
-                  const chunk = decoder.decode(value, { stream: true });
-                  const lines = chunk.split('\n');
+                      const chunk = decoder.decode(value, { stream: true });
+                      const lines = chunk.split('\n');
 
-                  for (const line of lines) {
-                      if (line.trim().startsWith('data:')) {
-                          const data = line.substring(5).trim();
-                          if (data === '[DONE]') break;
-                          try {
-                              const json = JSON.parse(data);
-                              if (!finalData) {
-                                  finalData = { ...json, choices: [{ message: { content: "" }, finish_reason: null, index: 0 }] };
+                      for (const line of lines) {
+                          if (line.trim().startsWith('data:')) {
+                              const data = line.substring(5).trim();
+                              if (data === '[DONE]') break;
+                              try {
+                                  const json = JSON.parse(data);
+                                  if (!finalData) {
+                                      finalData = { ...json, choices: [{ message: { content: "" }, finish_reason: null, index: 0 }] };
+                                  }
+                                  if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                                     const contentChunk = json.choices[0].delta.content;
+                                     fullResponse += contentChunk;
+                                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk, keyId: key.keyId })}\n\n`));
+                                  }
+                              } catch (e) {
+                                  // ignore incomplete json
                               }
-                              if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
-                                 const contentChunk = json.choices[0].delta.content;
-                                 fullResponse += contentChunk;
-                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk, keyId: key.keyId })}\n\n`));
-                              }
-                          } catch (e) {
-                              // ignore incomplete json
                           }
                       }
                   }
-              }
-
-            } else {
-              const data = await response.json();
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: {...data, keyId: key.keyId}, keyId: key.keyId })}\n\n`));
+                }
+            } else if (request.type === 'image') {
+              const data = await makeRequest(request, key);
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'image', status: 'fulfilled', content: data, keyId: key.keyId })}\n\n`));
             }
 
           } catch (e: any) {

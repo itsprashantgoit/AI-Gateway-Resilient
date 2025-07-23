@@ -38,29 +38,79 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             model: modelId,
             type: 'image',
             steps: model?.steps,
-            stream: false, 
+            stream: true, 
         }));
 
         setIsLoading(true);
         setStatus({ message: `Generating ${requests.length} images...`, type: '' });
-        setResponse({ type: 'boost', results: Array(requests.length).fill(null), requests });
+        setResponse({ type: 'boost_stream', results: Array(requests.length).fill(null), requests });
 
         const headers = { 'Content-Type': 'application/json' };
-        const body = JSON.stringify({ requests, stream: false });
+        const body = JSON.stringify({ requests, stream: true });
         const apiUrl = "/api/v1/booster/generate";
 
         try {
-            const res = await fetch(apiUrl, { method: 'POST', headers, body });
-            const results = await res.json();
-            
-            if (!res.ok) {
-                 const errorMessage = results.error || `An unknown error occurred. Status: ${res.status}`;
-                 throw new Error(`Gateway Error: ${errorMessage}`);
+            const response = await fetch(apiUrl, { method: 'POST', headers, body });
+            if (!response.ok) {
+               const errorJson = await response.json();
+               throw new Error(`Gateway Error (${response.status}): ${errorJson.error || JSON.stringify(errorJson)}`);
             }
+            if (!response.body) {
+               throw new Error("Response body is null");
+            }
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
 
-            setStatus({ message: `Generated ${results.length} images.`, type: 'success' });
-            setResponse({ type: 'boost', results, requests });
+            let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
+            setResponse({ type: 'boost_stream', results: boosterResults, requests });
 
+            while (true) {
+               const { done, value } = await reader.read();
+               if (done) {
+                   setStatus({ message: 'Image generation complete!', type: 'success' });
+                   break;
+               }
+
+               const chunk = decoder.decode(value, { stream: true });
+               const lines = chunk.split('\n\n');
+
+               for (const line of lines) {
+                   if (line.trim().startsWith('data:')) {
+                       const data = line.substring(5).trim();
+                       if (data === '[DONE]') {
+                           break;
+                       }
+                       try {
+                           const json = JSON.parse(data);
+                           const { index, status, content, reason, keyId, type } = json;
+                           
+                           if (type !== 'image') continue;
+
+                           if (boosterResults[index] === null) {
+                               boosterResults[index] = { status: 'pending', content: '', keyId: '' };
+                           }
+                           
+                           boosterResults[index].status = status;
+                           boosterResults[index].keyId = keyId;
+
+                           if (status === 'fulfilled') {
+                                boosterResults[index].content = content;
+                           } else if (status === 'rejected') {
+                               boosterResults[index].content = reason.message || 'Unknown error';
+                           }
+
+                           setResponse((prev: any) => ({
+                               ...prev,
+                               results: [...boosterResults]
+                           }));
+
+
+                       } catch(e) {
+                           console.log('Skipping incomplete JSON chunk in image studio:', data);
+                       }
+                   }
+               }
+            }
         } catch (error: any) {
             console.error('Image Studio Fetch Error:', error);
             setResponse({ type: 'error', content: `An error occurred: ${error.message}` });

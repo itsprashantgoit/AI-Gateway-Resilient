@@ -42,7 +42,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 }
             }
         } else if (result.status === 'rejected') {
-            keyId = result.keyId;
+            keyId = result.reason?.keyId;
             content = (
                 <p className="text-red-500">
                     Failed to process prompt: {result.reason?.message || JSON.stringify(result.reason)}
@@ -86,9 +86,13 @@ export function ResponseArea({ response }: ResponseAreaProps) {
              if (result.content.keyId) {
                 keyId = result.content.keyId;
             }
-            content = imageContent ? (
-                 <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
-            ) : <p className="text-gray-500">Processing image...</p>
+            if (result.status === 'pending') {
+                 content = <p className="text-gray-500">Waiting for image...</p>;
+            } else if (imageContent) {
+                 content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
+            } else {
+                 content = <p className="text-gray-500">Processing image...</p>;
+            }
         } else {
             content = null;
         }
