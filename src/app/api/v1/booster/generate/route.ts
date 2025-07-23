@@ -17,7 +17,7 @@ function getNextKey() {
 }
 
 async function makeRequest(request: any, key: any) {
-    const { model, prompt, type, steps, stream } = request;
+    const { model, prompt, type, steps } = request;
 
     const headers = {
         'Authorization': `Bearer ${key.apiKey}`,
@@ -32,7 +32,6 @@ async function makeRequest(request: any, key: any) {
         body = {
             model: model,
             messages: [{ role: 'user', content: prompt }],
-            stream: !!stream, 
         };
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
@@ -52,14 +51,6 @@ async function makeRequest(request: any, key: any) {
         headers,
         body: JSON.stringify(body),
     };
-
-    // For streaming chat, we need to handle the response differently
-    if (type === 'chat' && stream) {
-        // This is handled in the main POST function's streaming path
-        // This function will just be used for non-streaming or image calls in the booster
-         body.stream = false; // Force non-streaming for this path
-    }
-
 
     const res = await fetch(url, fetchOptions);
 
