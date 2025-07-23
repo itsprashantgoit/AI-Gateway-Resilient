@@ -44,7 +44,7 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
         setIsLoading(true);
         setStatus({ message: `Generating ${requests.length} images...`, type: '' });
         
-        let initialResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
+        const initialResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
         setResponse({ type: 'boost_stream', results: initialResults, requests });
 
         const headers = { 'Content-Type': 'application/json' };
@@ -65,7 +65,6 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             let receivedCount = 0;
 
             const processStream = async () => {
-              let boosterResults = [...initialResults];
               while (true) {
                  const { done, value } = await reader.read();
                  if (done) {
@@ -85,17 +84,16 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                              const json = JSON.parse(data);
                              const { index, status, content, reason, keyId } = json;
                              
-                             if (index !== undefined && index < boosterResults.length) {
-                                boosterResults[index] = {
-                                    status: status,
-                                    content: status === 'fulfilled' ? content : (reason?.message || 'Unknown error'),
-                                    keyId: keyId,
-                                };
-    
-                                setResponse((prev: any) => ({
-                                    ...prev,
-                                    results: [...boosterResults]
-                                }));
+                             if (index !== undefined && index < requests.length) {
+                                setResponse((prev: any) => {
+                                  const newResults = [...prev.results];
+                                  newResults[index] = {
+                                      status: status,
+                                      content: status === 'fulfilled' ? content : (reason?.message || 'Unknown error'),
+                                      keyId: keyId,
+                                  };
+                                  return { ...prev, results: newResults };
+                                });
     
                                 if (status === 'fulfilled' || status === 'rejected') {
                                      receivedCount++;
