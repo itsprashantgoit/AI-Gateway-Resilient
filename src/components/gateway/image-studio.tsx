@@ -113,7 +113,6 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                }
                 if (receivedResults === requests.length) {
                     setStatus({ message: 'Image generation complete!', type: 'success' });
-                    break; 
                 }
             }
         } catch (error: any) {
