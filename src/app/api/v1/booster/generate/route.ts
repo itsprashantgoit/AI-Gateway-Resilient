@@ -105,7 +105,16 @@ export async function POST(req: NextRequest) {
          }
        });
        const results = await Promise.allSettled(promises);
-       const finalResults = results.map(r => r.status === 'fulfilled' ? r.value : r.reason);
+       const finalResults = results.map(r => {
+            if (r.status === 'fulfilled') {
+                return r.value.value; 
+            } else {
+                return { 
+                    status: 'rejected', 
+                    reason: r.reason.reason || { message: 'An unknown error occurred during promise settlement.' }
+                };
+            }
+       });
        return NextResponse.json(finalResults);
     }
     
