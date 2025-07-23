@@ -72,11 +72,17 @@ export async function POST(req: NextRequest) {
             const key = getNextKey();
             try {
                 const res = await makeRequest(r, key.apiKey);
+                const resText = await res.text(); // Read response as text to avoid JSON parsing errors on HTML
                 if (!res.ok) {
-                    const errorBody = await res.json();
-                    throw errorBody.error || new Error(`API request failed with status ${res.status}`);
+                    try {
+                        // Try to parse as JSON, but fall back to text if it fails
+                        const errorBody = JSON.parse(resText);
+                        throw errorBody.error || new Error(`API request failed with status ${res.status}: ${resText}`);
+                    } catch (e) {
+                         throw new Error(`API request failed with status ${res.status}: ${resText}`);
+                    }
                 }
-                const value = await res.json();
+                const value = JSON.parse(resText);
                 return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
             } catch (reason: any) {
                 return { status: 'rejected', reason: { message: reason.message || 'Unknown error' }, keyId: key.keyId };
