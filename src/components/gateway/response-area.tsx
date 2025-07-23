@@ -2,14 +2,38 @@
 "use client";
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Copy, Download } from 'lucide-react';
 
 interface ResponseAreaProps {
     response: any;
 }
 
 export function ResponseArea({ response }: ResponseAreaProps) {
+    const [copiedText, setCopiedText] = useState<string | null>(null);
+
     if (!response) return <div id="response-area" className="mt-4 p-4 border rounded-lg min-h-[100px]"></div>;
+
+    const handleCopy = async (text: string) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopiedText(text);
+            setTimeout(() => setCopiedText(null), 2000); // Reset after 2 seconds
+        } catch (err) {
+            console.error('Failed to copy text: ', err);
+        }
+    };
+
+    const handleDownload = (base64Data: string, filename = 'generated_image.png') => {
+        const link = document.createElement('a');
+        link.href = `data:image/png;base64,${base64Data}`;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     const renderKey = (keyId: string) => {
         if (!keyId) return null;
@@ -26,6 +50,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         }
         
         let content;
+        let actions;
         let keyId;
 
         if (result.status === 'fulfilled') {
@@ -33,11 +58,24 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             keyId = value.keyId;
 
             if (request.type === 'chat') {
-                content = <p>{value.choices[0].message.content}</p>
+                const chatContent = value.choices[0].message.content;
+                content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>
+                actions = (
+                     <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent)}>
+                        <Copy className="h-4 w-4 mr-1" />
+                        {copiedText === chatContent ? 'Copied!' : 'Copy'}
+                    </Button>
+                )
             } else { // image
                 const b64_json = value?.data?.[0]?.b64_json;
                 if (b64_json) {
                     content = <Image src={`data:image/png;base64,${b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
+                    actions = (
+                         <Button variant="ghost" size="sm" onClick={() => handleDownload(b64_json, `image_${result.keyId}.png`)}>
+                            <Download className="h-4 w-4 mr-1" />
+                            Download
+                        </Button>
+                    );
                 } else {
                     content = <p className="text-red-500">Error: Image data not found.</p>
                 }
@@ -55,35 +93,40 @@ export function ResponseArea({ response }: ResponseAreaProps) {
 
         return (
             <>
-                {content}
-                {renderKey(keyId)}
+                <div className="flex-grow flex flex-col justify-center items-center text-center">{content}</div>
+                <div className="flex-shrink-0 mt-2 flex flex-col items-center">
+                    {actions}
+                    {renderKey(keyId)}
+                </div>
             </>
         )
     };
 
     const renderStreamedBoostResult = (result: any, request: any) => {
         if (!result || result.status === 'pending') {
-            return <p className="text-gray-500">Waiting for response...</p>;
-        }
-        if (result.status === 'rejected') {
-            return (
-                <>
-                    <p className="text-red-500">Error: {result.content || 'An unknown error occurred.'}</p>
-                    {renderKey(result.keyId)}
-                </>
-            )
+            return <div className="flex-grow flex items-center justify-center"><p className="text-gray-500">Waiting for response...</p></div>;
         }
 
         let content;
+        let actions;
         let keyId = result.keyId;
 
-        if (request.type === 'chat') {
-             const chatContent = (result.status === 'fulfilled' && result.content?.choices)
+        if (result.status === 'rejected') {
+            content = <p className="text-red-500">Error: {result.content || 'An unknown error occurred.'}</p>;
+        } else if (request.type === 'chat') {
+            const chatContent = (result.status === 'fulfilled' && result.content?.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
-            content = <p className="whitespace-pre-wrap">{chatContent}</p>
-        }
-        else if (request.type === 'image' && result.status === 'fulfilled') {
+            content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>
+            if (result.status !== 'streaming') {
+                 actions = (
+                    <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent)}>
+                        <Copy className="h-4 w-4 mr-1" />
+                        {copiedText === chatContent ? 'Copied!' : 'Copy'}
+                    </Button>
+                );
+            }
+        } else if (request.type === 'image' && result.status === 'fulfilled') {
             const imageContent = result.content?.data?.[0]?.b64_json;
             
             if (result.content?.keyId) {
@@ -92,11 +135,17 @@ export function ResponseArea({ response }: ResponseAreaProps) {
 
             if (imageContent) {
                  content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md" />
+                 actions = (
+                    <Button variant="ghost" size="sm" onClick={() => handleDownload(imageContent, `image_${keyId}.png`)}>
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                    </Button>
+                );
             } else {
                  content = <p className="text-red-500">Error: Could not parse image.</p>;
             }
         } else if (result.status === 'streaming') {
-            content = <p className="whitespace-pre-wrap">{result.content}</p>;
+            content = <p className="text-left whitespace-pre-wrap">{result.content}</p>;
         } else {
             content = <p className="text-gray-500">Processing...</p>
         }
@@ -104,7 +153,10 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         return (
             <>
                 <div className="flex-grow flex items-center justify-center">{content}</div>
-                {renderKey(keyId)}
+                 <div className="flex-shrink-0 mt-2 flex flex-col items-center">
+                    {actions}
+                    {renderKey(keyId)}
+                </div>
             </>
         )
     }
@@ -114,17 +166,29 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         switch (response.type) {
             case 'chat':
                 return (
-                    <>
-                        <p>{response.content}</p>
-                        {renderKey(response.keyId)}
-                    </>
+                    <div className="flex flex-col items-start gap-2">
+                        <p className="whitespace-pre-wrap">{response.content}</p>
+                         <div className="w-full flex flex-col items-start mt-2">
+                             <Button variant="outline" size="sm" onClick={() => handleCopy(response.content)}>
+                                <Copy className="h-4 w-4 mr-1" />
+                                {copiedText === response.content ? 'Copied!' : 'Copy'}
+                            </Button>
+                            {renderKey(response.keyId)}
+                        </div>
+                    </div>
                 );
             case 'image':
                  return (
-                    <>
+                    <div className="flex flex-col items-center gap-2">
                         <Image src={`data:image/png;base64,${response.content}`} alt={response.alt} width={512} height={512} />
-                        {renderKey(response.keyId)}
-                    </>
+                        <div className="w-full flex flex-col items-start mt-2">
+                            <Button variant="outline" size="sm" onClick={() => handleDownload(response.content, `image_${response.keyId}.png`)}>
+                                <Download className="h-4 w-4 mr-1" />
+                                Download
+                            </Button>
+                            {renderKey(response.keyId)}
+                        </div>
+                    </div>
                 );
             case 'error':
                 return <p className="text-red-500">{response.content}</p>
@@ -138,7 +202,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                                     <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    <div className="flex-grow flex flex-col justify-center items-center text-center">{renderBoostResult(result, request)}</div>
+                                    {renderBoostResult(result, request)}
                                 </Card>
                              )
                         })}
@@ -154,7 +218,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                                     <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    <div className="flex-grow flex flex-col justify-center items-center text-center h-full">{renderStreamedBoostResult(result, request)}</div>
+                                    {renderStreamedBoostResult(result, request)}
                                 </Card>
                              )
                         })}
