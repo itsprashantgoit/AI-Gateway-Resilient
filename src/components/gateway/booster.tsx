@@ -87,21 +87,82 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
 
         setIsLoading(true);
         setStatus({ message: `Boosting ${requests.length} prompts...`, type: '' });
-        setResponse(null);
+        setResponse({ type: 'boost_stream', results: Array(requests.length).fill(null), requests });
 
         const headers = { 'Content-Type': 'application/json' };
-        const body = JSON.stringify({ requests });
+        const body = JSON.stringify({ requests, stream: stream });
         const apiUrl = "/api/v1/booster/generate";
 
         try {
-            const res = await fetch(apiUrl, { method: 'POST', headers, body });
-            const results = await res.json();
-            if (!res.ok) {
-                throw new Error(`Gateway Error (${res.status}): ${results.error || 'Unknown booster error'}`);
-            }
+            if (stream) {
+                 const response = await fetch(apiUrl, { method: 'POST', headers, body });
+                 if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Gateway Error (${response.status}): ${errorText}`);
+                 }
+                 if (!response.body) {
+                    throw new Error("Response body is null");
+                 }
+                 const reader = response.body.getReader();
+                 const decoder = new TextDecoder();
 
-            setStatus({ message: `Boost complete! Processed ${results.length} prompts.`, type: 'success' });
-            setResponse({ type: 'boost', results, requests });
+                 let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '' }));
+
+                 while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
+                        setStatus({ message: 'Boost complete!', type: 'success' });
+                        break;
+                    }
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n\n');
+
+                    for (const line of lines) {
+                        if (line.trim().startsWith('data:')) {
+                            const data = line.substring(5).trim();
+                            if (data === '[DONE]') {
+                                break;
+                            }
+                            try {
+                                const json = JSON.parse(data);
+                                const { index, type, status, content, reason } = json;
+                                
+                                if (boosterResults[index].status === 'pending') {
+                                    boosterResults[index].status = status;
+                                }
+
+                                if (status === 'streaming') {
+                                    boosterResults[index].content += content;
+                                } else if (status === 'fulfilled') {
+                                     boosterResults[index].content = content;
+                                } else if (status === 'rejected') {
+                                    boosterResults[index].status = 'rejected';
+                                    boosterResults[index].content = reason.message || 'Unknown error';
+                                }
+
+                                setResponse((prev: any) => ({
+                                    ...prev,
+                                    results: [...boosterResults]
+                                }));
+
+
+                            } catch(e) {
+                                console.log('Skipping incomplete JSON chunk in booster:', data);
+                            }
+                        }
+                    }
+                 }
+            } else {
+                const res = await fetch(apiUrl, { method: 'POST', headers, body });
+                const results = await res.json();
+                if (!res.ok) {
+                    throw new Error(`Gateway Error (${res.status}): ${results.error || 'Unknown booster error'}`);
+                }
+
+                setStatus({ message: `Boost complete! Processed ${results.length} prompts.`, type: 'success' });
+                setResponse({ type: 'boost', results, requests });
+            }
 
         } catch (error: any) {
             console.error('Boost Fetch Error:', error);

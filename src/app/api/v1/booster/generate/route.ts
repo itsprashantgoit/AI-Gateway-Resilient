@@ -1,5 +1,5 @@
 'use server';
-import {NextResponse} from 'next/server';
+import {NextRequest, NextResponse} from 'next/server';
 import keys from '@/keys.json';
 
 const TOGETHER_API_BASE_URL = 'https://api.together.xyz/v1/';
@@ -16,9 +16,9 @@ function getNextKey() {
   return key;
 }
 
-async function makeRequest(request: any) {
+async function makeRequest(request: any, apiKey: string) {
     const { model, prompt, type, steps, stream } = request;
-    const apiKey = getNextKey();
+    
     const headers = {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
@@ -59,68 +59,104 @@ async function makeRequest(request: any) {
         throw errorBody.error || new Error(`API request failed with status ${response.status}`);
     }
     
-    if (type === 'chat' && stream) {
-        if (!response.body) {
-            throw new Error("Stream response body is null");
-        }
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let fullResponse = "";
-        let finalData: any = null;
-
-        while(true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-
-            for (const line of lines) {
-                if (line.trim().startsWith('data:')) {
-                    const data = line.substring(5).trim();
-                    if (data === '[DONE]') {
-                        break;
-                    }
-                    try {
-                        const json = JSON.parse(data);
-                        if (!finalData) {
-                            finalData = json;
-                            finalData.choices = [{ message: { content: ""}}];
-                        }
-                        if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
-                           fullResponse += json.choices[0].delta.content;
-                        }
-                    } catch (e) {
-                        // ignore incomplete json
-                    }
-                }
-            }
-        }
-        if (finalData) {
-            finalData.choices[0].message.content = fullResponse;
-            return finalData;
-        } else {
-            throw new Error("Failed to process stream");
-        }
-    }
-
-
-    const data = await response.json();
-    return data;
+    return response;
 }
 
-
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { requests } = await req.json();
+    const { requests, stream: streamAll } = await req.json();
 
-    const promises = requests.map((r: any) => {
-        return makeRequest(r).then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason: { message: reason.message || 'Unknown error' } }));
+    if (!streamAll) {
+       const promises = requests.map((r: any) => {
+            const apiKey = getNextKey();
+            return makeRequest(r, apiKey)
+              .then(res => res.json())
+              .then(value => ({ status: 'fulfilled', value }))
+              .catch(reason => ({ status: 'rejected', reason: { message: reason.message || 'Unknown error' } }));
+        });
+
+        const results = await Promise.all(promises);
+        return NextResponse.json(results);
+    }
+    
+    // Handle streaming
+    const encoder = new TextEncoder();
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        
+        const processRequest = async (request: any, index: number) => {
+          const apiKey = getNextKey();
+          try {
+            const response = await makeRequest(request, apiKey);
+
+            if (request.type === 'chat' && request.stream && response.body) {
+              const reader = response.body.getReader();
+              const decoder = new TextDecoder();
+              let fullResponse = "";
+              let finalData: any = null;
+
+              while(true) {
+                  const {done, value} = await reader.read();
+                  if (done) {
+                      if (finalData) {
+                          finalData.choices[0].message.content = fullResponse;
+                           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData })}\n\n`));
+                      }
+                      break;
+                  };
+
+                  const chunk = decoder.decode(value, { stream: true });
+                  const lines = chunk.split('\n');
+
+                  for (const line of lines) {
+                      if (line.trim().startsWith('data:')) {
+                          const data = line.substring(5).trim();
+                          if (data === '[DONE]') break;
+                          try {
+                              const json = JSON.parse(data);
+                              if (!finalData) {
+                                  finalData = { ...json, choices: [{ message: { content: "" }}] };
+                              }
+                              if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                                 const contentChunk = json.choices[0].delta.content;
+                                 fullResponse += contentChunk;
+                                 // Stream chunk
+                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk })}\n\n`));
+                              }
+                          } catch (e) {
+                              // ignore incomplete json
+                          }
+                      }
+                  }
+              }
+
+            } else {
+              // Non-streaming chat or image
+              const data = await response.json();
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: data })}\n\n`));
+            }
+
+          } catch (e: any) {
+             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: e.message || 'Unknown error' } })}\n\n`));
+          }
+        };
+
+        // Process all requests concurrently
+        await Promise.all(requests.map(processRequest));
+
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      },
     });
 
-    const results = await Promise.all(promises);
+    return new NextResponse(readableStream, {
+        headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+        }
+    });
 
-    return NextResponse.json(results);
   } catch (error: any) {
     return NextResponse.json({error: error.message}, {status: 500});
   }
