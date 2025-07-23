@@ -78,15 +78,15 @@ export async function POST(req: NextRequest) {
                 if (!res.ok) {
                     let errorBody;
                     try {
-                        // Attempt to parse as JSON, but fall back to raw text if it fails
                         errorBody = JSON.parse(resText);
                     } catch (e) {
+                        // The response is not valid JSON, treat it as plain text.
                         errorBody = { error: { message: resText } };
                     }
                     throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`);
                 }
                 
-                const value = JSON.parse(resText); // We already have the text, so just parse it
+                const value = JSON.parse(resText);
                 return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
 
             } catch (error: any) {
