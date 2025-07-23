@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -29,7 +28,7 @@ export default function GatewayTesterPage() {
       />
 
       <Booster 
-        models={models} 
+        models={models.filter(m => m.type === 'chat')} 
         setStatus={setStatus}
         setResponse={setResponse}
         setIsLoading={setIsLoading}
