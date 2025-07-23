@@ -20,6 +20,10 @@ export function ResponseArea({ response }: ResponseAreaProps) {
     }
 
     const renderBoostResult = (result: any, request: any) => {
+        if (!result) {
+            return <p className="text-gray-500">Waiting for response...</p>;
+        }
+        
         let content;
         let keyId;
 
@@ -36,13 +40,15 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                     content = <p className="text-red-500">Error: Image data not found.</p>
                 }
             }
-        } else { // rejected
+        } else if (result.status === 'rejected') {
             keyId = result.keyId;
             content = (
                 <p className="text-red-500">
                     Failed to process prompt: {result.reason?.message || JSON.stringify(result.reason)}
                 </p>
             );
+        } else {
+             content = <p className="text-gray-500">Processing...</p>;
         }
 
         return (
