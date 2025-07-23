@@ -62,11 +62,11 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             }
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
+            let receivedResults = 0;
 
             while (true) {
                const { done, value } = await reader.read();
                if (done) {
-                   setStatus({ message: 'Image generation complete!', type: 'success' });
                    break;
                }
 
@@ -94,8 +94,10 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
 
                            if (status === 'fulfilled') {
                                 boosterResults[index].content = content;
+                                receivedResults++;
                            } else if (status === 'rejected') {
                                boosterResults[index].content = reason.message || 'Unknown error';
+                               receivedResults++;
                            }
 
                            setResponse((prev: any) => ({
@@ -109,6 +111,10 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                        }
                    }
                }
+                if (receivedResults === requests.length) {
+                    setStatus({ message: 'Image generation complete!', type: 'success' });
+                    break; 
+                }
             }
         } catch (error: any) {
             console.error('Image Studio Fetch Error:', error);
