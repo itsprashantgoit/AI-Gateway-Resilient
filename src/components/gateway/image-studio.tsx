@@ -43,7 +43,9 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
 
         setIsLoading(true);
         setStatus({ message: `Generating ${requests.length} images...`, type: '' });
-        setResponse({ type: 'boost_stream', results: Array(requests.length).fill(null), requests });
+        
+        let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
+        setResponse({ type: 'boost_stream', results: boosterResults, requests });
 
         const headers = { 'Content-Type': 'application/json' };
         const body = JSON.stringify({ requests, stream: true });
@@ -60,9 +62,6 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             }
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-
-            let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
-            setResponse({ type: 'boost_stream', results: boosterResults, requests });
 
             while (true) {
                const { done, value } = await reader.read();
