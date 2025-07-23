@@ -71,6 +71,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
+                let buffer = '';
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -79,8 +80,9 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                         setIsLoading(false);
                         break;
                     }
-                    const chunk = decoder.decode(value, {stream: true});
-                    const lines = chunk.split('\n');
+                    buffer += decoder.decode(value, {stream: true});
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep the last, potentially incomplete line
                     
                     for (const line of lines) {
                          if (line.trim().startsWith('event: key')) {
@@ -129,8 +131,9 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 if (selectedModel.type === 'chat') {
                     setResponse({ type: 'chat', content: data.choices[0].message.content, keyId: data.keyId });
                 } else { // image
-                    if (data.data && data.data[0] && data.data[0].b64_json) {
-                       setResponse({ type: 'image', content: data.data[0].b64_json, alt: prompt, keyId: data.keyId });
+                    const b64_json = data?.data?.[0]?.b64_json;
+                    if (b64_json) {
+                       setResponse({ type: 'image', content: b64_json, alt: prompt, keyId: data.keyId });
                     } else {
                         console.error("Full API response:", data);
                         throw new Error("Image data (b64_json) not found in the API response.");
