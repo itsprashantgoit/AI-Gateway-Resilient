@@ -26,10 +26,6 @@ async function makeRequest(request: any, apiKey: string) {
 
     let url: string;
     let body: any;
-    let fetchOptions: RequestInit = {
-        method: 'POST',
-        headers,
-    };
 
     if (type === 'chat') {
         url = `${TOGETHER_API_BASE_URL}chat/completions`;
@@ -38,9 +34,15 @@ async function makeRequest(request: any, apiKey: string) {
             messages: [{ role: 'user', content: prompt }],
             stream: stream,
         };
-        fetchOptions.body = JSON.stringify(body);
-        // @ts-expect-error
-        fetchOptions.duplex = 'half';
+        const fetchOptions: RequestInit = {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+            // @ts-expect-error
+            duplex: 'half',
+        };
+        return await fetch(url, fetchOptions);
+
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
         body = {
@@ -49,19 +51,16 @@ async function makeRequest(request: any, apiKey: string) {
             n: 1,
             steps: steps,
         };
-        fetchOptions.body = JSON.stringify(body);
+        const fetchOptions: RequestInit = {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        };
+        return await fetch(url, fetchOptions);
+
     } else {
         throw new Error(`Unsupported model type: ${type}`);
     }
-
-    const response = await fetch(url, fetchOptions);
-
-    if (!response.ok) {
-        const errorBody = await response.json();
-        throw errorBody.error || new Error(`API request failed with status ${response.status}`);
-    }
-    
-    return response;
 }
 
 export async function POST(req: NextRequest) {
@@ -69,12 +68,19 @@ export async function POST(req: NextRequest) {
     const { requests, stream: streamAll } = await req.json();
 
     if (!streamAll) {
-       const promises = requests.map((r: any) => {
+       const promises = requests.map(async (r: any) => {
             const key = getNextKey();
-            return makeRequest(r, key.apiKey)
-              .then(res => res.json())
-              .then(value => ({ status: 'fulfilled', value: { ...value, keyId: key.keyId } }))
-              .catch(reason => ({ status: 'rejected', reason: { message: reason.message || 'Unknown error' }, keyId: key.keyId }));
+            try {
+                const res = await makeRequest(r, key.apiKey);
+                if (!res.ok) {
+                    const errorBody = await res.json();
+                    throw errorBody.error || new Error(`API request failed with status ${res.status}`);
+                }
+                const value = await res.json();
+                return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
+            } catch (reason: any) {
+                return { status: 'rejected', reason: { message: reason.message || 'Unknown error' }, keyId: key.keyId };
+            }
         });
 
         const results = await Promise.all(promises);
@@ -90,6 +96,11 @@ export async function POST(req: NextRequest) {
           const key = getNextKey();
           try {
             const response = await makeRequest(request, key.apiKey);
+
+            if (!response.ok) {
+                const errorBody = await response.json();
+                throw errorBody.error || new Error(`API request failed with status ${response.status}`);
+            }
 
             if (request.type === 'chat' && request.stream && response.body) {
               const reader = response.body.getReader();
