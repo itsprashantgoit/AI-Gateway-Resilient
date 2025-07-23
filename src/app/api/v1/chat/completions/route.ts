@@ -1,79 +1,63 @@
 'use server';
-import {ai} from '@/ai/genkit';
 import {NextResponse} from 'next/server';
-import {Message, Role, Part} from 'genkit/model';
+import keys from '@/keys.json';
 
-// convert messages from the OpanAI format to the Genkit format
-function convertMessages(
-  messages: {role: Role; content: string}[]
-): Message[] {
-  const genkitMessages: Message[] = [];
-  for (const message of messages) {
-    const parts: Part[] = [{text: message.content}];
-    genkitMessages.push({
-      role: message.role,
-      content: parts,
-    });
-  }
-  return genkitMessages;
+const TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions';
+
+let keyIndex = 0;
+const togetherKeys = keys.filter(k => k.provider === 'together.ai').map(k => k.apiKey);
+
+function getNextKey() {
+  const key = togetherKeys[keyIndex];
+  keyIndex = (keyIndex + 1) % togetherKeys.length;
+  return key;
 }
 
 export async function POST(req: Request) {
-  const {model, messages, stream} = await req.json();
+  const incomingRequest = await req.json();
+  const { model, messages, stream } = incomingRequest;
 
-  if (stream) {
-    const {stream, response} = ai.generateStream({
-      model: model,
-      history: convertMessages(messages.slice(0, messages.length - 1)),
-      prompt: messages[messages.length - 1].content,
+  const headers = {
+    'Authorization': `Bearer ${getNextKey()}`,
+    'Content-Type': 'application/json'
+  };
+
+  const body = JSON.stringify({
+    model: model,
+    messages: messages,
+    stream: stream,
+  });
+
+  try {
+    const response = await fetch(TOGETHER_API_URL, {
+      method: 'POST',
+      headers,
+      body,
     });
-
-    const encoder = new TextEncoder();
-    const transformStream = new TransformStream({
-      async transform(chunk, controller) {
-        const content = chunk.text;
-        const out = {
-          choices: [
-            {
-              delta: {
-                content: content,
-              },
-            },
-          ],
-        };
-        controller.enqueue(encoder.encode('data: ' + JSON.stringify(out)));
-      },
-    });
-
-    (async () => {
-      await response;
-      const finalChunk = new TransformStream({
-        transform(chunk, controller) {
-          controller.enqueue(chunk);
-        },
-        flush(controller) {
-          controller.enqueue(encoder.encode('\n\ndata: [DONE]\n\n'));
-        },
+    
+    if (!response.ok) {
+        const errorBody = await response.text();
+        console.error("Upstream API Error:", errorBody);
+        return new NextResponse(errorBody, { status: response.status, headers: {'Content-Type': 'application/json'} });
+    }
+    
+    // If streaming, return the stream directly
+    if (stream && response.body) {
+      return new NextResponse(response.body, {
+          headers: {
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+          }
       });
-      stream.pipeThrough(transformStream).pipeTo(finalChunk.writable);
-    })();
+    }
 
-    return new Response(transformStream.readable, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    });
-  } else {
-    const result = await ai.generate({
-      model: model,
-      history: convertMessages(messages.slice(0, messages.length - 1)),
-      prompt: messages[messages.length - 1].content,
-    });
+    // If not streaming, parse and return JSON
+    const data = await response.json();
+    return NextResponse.json(data);
 
-    return NextResponse.json({
-      choices: [{message: {content: result.text}}],
-    });
+  } catch (error: any) {
+    console.error('Proxy Error:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

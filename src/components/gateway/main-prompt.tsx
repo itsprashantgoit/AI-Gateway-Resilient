@@ -42,7 +42,6 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
             body = JSON.stringify({
                 model: modelId,
                 messages: [{ role: 'user', content: prompt }],
-                conversation_id: "local-test-session",
                 stream: stream
             });
         } else { // image
@@ -51,8 +50,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 model: modelId,
                 prompt: prompt,
                 n: 1,
-                steps: selectedModel.steps,
-                response_format: "b64_json"
+                steps: selectedModel.steps
             });
         }
 
@@ -69,7 +67,12 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
 
                 eventSource.onmessage = function(event) {
                     let data = event.data;
-                    if (data === '[DONE]' || !data) return;
+                    if (data.startsWith('[DONE]')) {
+                        eventSource.close();
+                        setStatus({ message: 'Streaming complete!', type: 'success' });
+                        setIsLoading(false);
+                        return;
+                    }
                     try {
                         const json = JSON.parse(data);
                         if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
@@ -77,29 +80,41 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                             setResponse({ type: 'chat', content: fullResponse });
                         }
                     } catch (e) {
-                        // Ignore non-JSON lines
+                         // It might not be JSON, but a full text chunk
+                        if(typeof data === 'string') {
+                            // This case handles potential error messages that are not in JSON format
+                            const dataString = data.toString();
+                            try {
+                                const errorJson = JSON.parse(dataString);
+                                if(errorJson.error) {
+                                    setResponse({ type: 'error', content: errorJson.error.message });
+                                    setStatus({ message: 'Streaming error.', type: 'error' });
+                                    setIsLoading(false);
+                                    eventSource.close();
+                                }
+                            } catch(jsonError) {
+                                // Not a json error, might be part of the stream.
+                            }
+                        }
                     }
                 };
                 eventSource.onerror = function(err) {
+                    console.error("EventSource failed:", err);
                     setStatus({ message: 'Streaming error.', type: 'error' });
+                    setResponse({ type: 'error', content: 'An error occurred during streaming. Check console for details.'})
                     eventSource.close();
                     setIsLoading(false);
                 };
                 eventSource.onopen = function() {
                     setStatus({ message: 'Streaming started...', type: '' });
                 };
-                eventSource.addEventListener('end', function() {
-                    setStatus({ message: 'Streaming complete!', type: 'success' });
-                    setIsLoading(false);
-                    eventSource.close();
-                });
 
             } else {
                 const res = await fetch(apiUrl, { method: 'POST', headers: headers, body: body });
                 const data = await res.json();
 
                 if (!res.ok) {
-                    let errorMessage = data?.error || `An unknown error occurred. Status: ${res.status}`;
+                    let errorMessage = data?.error?.message || data?.error || `An unknown error occurred. Status: ${res.status}`;
                     if(data.provider_error) errorMessage += ` - Provider: ${data.provider_error.error.message}`;
                     throw new Error(`Gateway Error (${res.status}): ${errorMessage}`);
                 }

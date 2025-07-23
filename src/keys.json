@@ -1,0 +1,62 @@
+[
+    {
+      "keyId": "together-ai-main-key",
+      "apiKey": "tgp_v1_-zRKFs7Wg77qB67kmPzv2lcBkuGNFjg8Ixq9tY2zx8w",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-test-3",
+      "apiKey": "tgp_v1_VZUjfcVNZnyrR9B6JQDQ06aOvdnfSaI7NRZdGvgceTI",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-test-4",
+      "apiKey": "tgp_v1_riAX4Ifpk6Xnq4IzQ6xrG8CKQjCSLk0kaJ2-PvmXTYo",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    },
+    {
+      "keyId": "together-key-test-5",
+      "apiKey": "tgp_v1_-zRKFs7Wg77qB67kmPzv2lcBkuGNFjg8Ixq9tY2zx8w",
+      "provider": "together.ai",
+      "models": [
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-70B",
+        "arcee-ai/AFM-4.5B-Preview",
+        "meta-llama/Llama-Vision-Free",
+        "lgai/exaone-deep-32b",
+        "lgai/exaone-3-5-32b-instruct",
+        "meta-llama/Llama-3.3-70B-Instruct-Turbo-Free",
+        "black-forest-labs/FLUX.1-schnell-Free"
+      ],
+      "rateLimitPerMinute": 60
+    }
+  ]

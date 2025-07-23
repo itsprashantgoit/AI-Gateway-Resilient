@@ -1,38 +1,72 @@
 'use server';
 import {NextResponse} from 'next/server';
+import keys from '@/keys.json';
 
-// Dummy implementation for booster generate.
-// In a real scenario, this would call multiple models.
+const TOGETHER_API_BASE_URL = 'https://api.together.xyz/v1/';
+
+let keyIndex = 0;
+const togetherKeys = keys.filter(k => k.provider === 'together.ai').map(k => k.apiKey);
+
+function getNextKey() {
+  const key = togetherKeys[keyIndex];
+  keyIndex = (keyIndex + 1) % togetherKeys.length;
+  return key;
+}
+
+async function makeRequest(request: any) {
+    const { model, prompt, type, steps } = request;
+    const apiKey = getNextKey();
+    const headers = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+    };
+
+    let url: string;
+    let body: string;
+
+    if (type === 'chat') {
+        url = `${TOGETHER_API_BASE_URL}chat/completions`;
+        body = JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: prompt }],
+        });
+    } else if (type === 'image') {
+        url = `${TOGETHER_API_BASE_URL}images/generations`;
+        body = JSON.stringify({
+            model: model,
+            prompt: prompt,
+            n: 1,
+            steps: steps,
+        });
+    } else {
+        throw new Error(`Unsupported model type: ${type}`);
+    }
+
+    const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body
+    });
+    
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw data.error || new Error(`API request failed with status ${response.status}`);
+    }
+    
+    return data;
+}
+
+
 export async function POST(req: Request) {
   try {
-    const {requests} = await req.json();
+    const { requests } = await req.json();
 
     const promises = requests.map((r: any) => {
-      // This is a simplified mock. A real implementation would need
-      // to call the respective AI providers based on `r.model`.
-      if (r.type === 'chat') {
-        return Promise.resolve({
-          status: 'fulfilled',
-          value: {
-            choices: [
-              {message: {content: `Mock response for: ${r.prompt}`}},
-            ],
-          },
-        });
-      }
-      if (r.type === 'image') {
-        return Promise.resolve({
-          status: 'fulfilled',
-          value: {data: [{b64_json: ''}]}, // empty image
-        });
-      }
-      return Promise.reject({
-        status: 'rejected',
-        reason: {message: 'Unsupported model type'},
-      });
+        return makeRequest(r).then(value => ({ status: 'fulfilled', value })).catch(reason => ({ status: 'rejected', reason: { message: reason.message || 'Unknown error' } }));
     });
 
-    const results = await Promise.allSettled(promises);
+    const results = await Promise.all(promises);
 
     return NextResponse.json(results);
   } catch (error: any) {
