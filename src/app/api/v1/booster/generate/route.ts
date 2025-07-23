@@ -50,6 +50,7 @@ async function makeRequest(request: any, apiKey: string) {
             prompt: prompt,
             n: 1,
             steps: steps,
+            response_format: "b64_json"
         };
         const fetchOptions: RequestInit = {
             method: 'POST',

@@ -137,7 +137,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                     if (b64_json) {
                        setResponse({ type: 'image', content: b64_json, alt: prompt, keyId: data.keyId });
                     } else {
-                        console.error("Full API response:", data);
+                        console.error("Full API response for debugging:", data);
                         throw new Error("Image data (b64_json) not found in the API response.");
                     }
                 }
