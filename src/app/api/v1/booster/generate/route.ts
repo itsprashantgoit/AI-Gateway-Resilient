@@ -8,6 +8,9 @@ let keyIndex = 0;
 const togetherKeys = keys.filter(k => k.provider === 'together.ai').map(k => k.apiKey);
 
 function getNextKey() {
+  if (togetherKeys.length === 0) {
+    throw new Error("No keys available for together.ai");
+  }
   const key = togetherKeys[keyIndex];
   keyIndex = (keyIndex + 1) % togetherKeys.length;
   return key;

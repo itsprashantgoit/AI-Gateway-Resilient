@@ -58,56 +58,48 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
             if (selectedModel.type === 'chat' && stream) {
                 setStatus({ message: 'Streaming response...', type: '' });
                 let fullResponse = '';
-                const eventSource = new EventSourcePolyfill(apiUrl, {
-                    headers: headers,
-                    payload: body,
-                    method: 'POST',
-                    withCredentials: false
-                });
+                const response = await fetch(apiUrl, { method: 'POST', headers: headers, body: body });
 
-                eventSource.onmessage = function(event) {
-                    let data = event.data;
-                    if (data.startsWith('[DONE]')) {
-                        eventSource.close();
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`Gateway Error (${response.status}): ${errorText}`);
+                }
+
+                if (!response.body) {
+                    throw new Error("Response body is null");
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) {
                         setStatus({ message: 'Streaming complete!', type: 'success' });
                         setIsLoading(false);
-                        return;
+                        break;
                     }
-                    try {
-                        const json = JSON.parse(data);
-                        if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
-                            fullResponse += json.choices[0].delta.content;
-                            setResponse({ type: 'chat', content: fullResponse });
-                        }
-                    } catch (e) {
-                         // It might not be JSON, but a full text chunk
-                        if(typeof data === 'string') {
-                            // This case handles potential error messages that are not in JSON format
-                            const dataString = data.toString();
+                    const chunk = decoder.decode(value, {stream: true});
+                    const lines = chunk.split('\\n');
+                    
+                    for (const line of lines) {
+                        if (line.trim().startsWith('data:')) {
+                            const data = line.substring(5).trim();
+                            if (data === '[DONE]') {
+                                break;
+                            }
                             try {
-                                const errorJson = JSON.parse(dataString);
-                                if(errorJson.error) {
-                                    setResponse({ type: 'error', content: errorJson.error.message });
-                                    setStatus({ message: 'Streaming error.', type: 'error' });
-                                    setIsLoading(false);
-                                    eventSource.close();
+                                const json = JSON.parse(data);
+                                if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                                    fullResponse += json.choices[0].delta.content;
+                                    setResponse({ type: 'chat', content: fullResponse });
                                 }
-                            } catch(jsonError) {
-                                // Not a json error, might be part of the stream.
+                            } catch (e) {
+                                console.error('Error parsing stream data:', e);
                             }
                         }
                     }
-                };
-                eventSource.onerror = function(err) {
-                    console.error("EventSource failed:", err);
-                    setStatus({ message: 'Streaming error.', type: 'error' });
-                    setResponse({ type: 'error', content: 'An error occurred during streaming. Check console for details.'})
-                    eventSource.close();
-                    setIsLoading(false);
-                };
-                eventSource.onopen = function() {
-                    setStatus({ message: 'Streaming started...', type: '' });
-                };
+                }
 
             } else {
                 const res = await fetch(apiUrl, { method: 'POST', headers: headers, body: body });
