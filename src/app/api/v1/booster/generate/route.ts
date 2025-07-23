@@ -87,15 +87,16 @@ export async function POST(req: NextRequest) {
     // Non-streaming path for Booster (chat) and Image Studio
     if (!streamAll) {
        const promises = requests.map(async (r: any) => {
+         let key;
          try {
-           const key = getNextKey();
+           key = getNextKey();
            const value = await makeRequest(r, key);
            return { status: 'fulfilled', value };
          } catch (error: any) {
-           return { status: 'rejected', reason: { message: error.message || 'Unknown error' } };
+           return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId: key?.keyId } };
          }
        });
-       const results = await Promise.all(promises);
+       const results = await Promise.all(results);
        return NextResponse.json(results);
     }
     
