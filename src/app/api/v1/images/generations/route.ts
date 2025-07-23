@@ -39,6 +39,8 @@ export async function POST(req: Request) {
       method: 'POST',
       headers,
       body,
+      // @ts-expect-error
+      duplex: 'half'
     });
 
     if (!response.ok) {
