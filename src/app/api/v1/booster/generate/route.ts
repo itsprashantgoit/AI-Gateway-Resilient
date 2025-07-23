@@ -19,66 +19,61 @@ function getNextKey() {
 async function makeRequest(request: any, key: any) {
     const { model, prompt, type, steps } = request;
 
-    try {
-        const headers = {
-            'Authorization': `Bearer ${key.apiKey}`,
-            'Content-Type': 'application/json'
+    const headers = {
+        'Authorization': `Bearer ${key.apiKey}`,
+        'Content-Type': 'application/json'
+    };
+
+    let url: string;
+    let body: any;
+    let fetchOptions: RequestInit;
+
+    if (type === 'chat') {
+        url = `${TOGETHER_API_BASE_URL}chat/completions`;
+        body = {
+            model: model,
+            messages: [{ role: 'user', content: prompt }],
+            stream: false, 
         };
-
-        let url: string;
-        let body: any;
-        let fetchOptions: RequestInit;
-
-        if (type === 'chat') {
-            url = `${TOGETHER_API_BASE_URL}chat/completions`;
-            body = {
-                model: model,
-                messages: [{ role: 'user', content: prompt }],
-                stream: false, // Non-streaming for this path
-            };
-            fetchOptions = {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(body),
-            };
-        } else if (type === 'image') {
-            url = `${TOGETHER_API_BASE_URL}images/generations`;
-            body = {
-                model: model,
-                prompt: prompt,
-                n: 1,
-                steps: steps,
-                response_format: "b64_json"
-            };
-            fetchOptions = {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(body),
-            };
-        } else {
-            throw new Error(`Unsupported model type: ${type}`);
-        }
-
-        const res = await fetch(url, fetchOptions);
-
-        if (!res.ok) {
-            const resText = await res.text();
-            let errorBody;
-            try {
-                errorBody = JSON.parse(resText);
-            } catch (e) {
-                errorBody = { error: { message: resText } };
-            }
-            const errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`;
-            throw new Error(errorMessage);
-        }
-        
-        const value = await res.json();
-        return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
-
-    } catch (error: any) {
-        return { status: 'rejected', reason: { message: error.message || 'Unknown error' }, keyId: key.keyId };
+        fetchOptions = {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        };
+    } else if (type === 'image') {
+        url = `${TOGETHER_API_BASE_URL}images/generations`;
+        body = {
+            model: model,
+            prompt: prompt,
+            n: 1,
+            steps: steps,
+            response_format: "b64_json"
+        };
+        fetchOptions = {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(body),
+        };
+    } else {
+        throw new Error(`Unsupported model type: ${type}`);
     }
+
+    const res = await fetch(url, fetchOptions);
+
+    if (!res.ok) {
+        let errorBody;
+        const resText = await res.text();
+        try {
+            errorBody = JSON.parse(resText);
+        } catch (e) {
+            errorBody = { error: { message: resText } };
+        }
+        const errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`;
+        throw new Error(errorMessage);
+    }
+    
+    const value = await res.json();
+    return { ...value, keyId: key.keyId };
 }
 
 export async function POST(req: NextRequest) {
@@ -91,7 +86,15 @@ export async function POST(req: NextRequest) {
     
     // Non-streaming path for Booster (chat) and Image Studio
     if (!streamAll) {
-       const promises = requests.map(r => makeRequest(r, getNextKey()));
+       const promises = requests.map(async (r: any) => {
+         try {
+           const key = getNextKey();
+           const value = await makeRequest(r, key);
+           return { status: 'fulfilled', value };
+         } catch (error: any) {
+           return { status: 'rejected', reason: { message: error.message || 'Unknown error' } };
+         }
+       });
        const results = await Promise.all(promises);
        return NextResponse.json(results);
     }
@@ -102,8 +105,9 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         
         const processRequest = async (request: any, index: number) => {
-          const key = getNextKey();
+          let key;
           try {
+            key = getNextKey();
             if (request.type !== 'chat') {
                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: 'Streaming is only supported for chat models.' }, keyId: key.keyId })}\n\n`));
                  return;
@@ -185,7 +189,8 @@ export async function POST(req: NextRequest) {
             }
 
           } catch (e: any) {
-             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: e.message || 'Unknown error' }, keyId: key.keyId })}\n\n`));
+             const keyId = key ? key.keyId : 'unknown';
+             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: e.message || 'Unknown error' }, keyId: keyId })}\n\n`));
           }
         };
 
@@ -207,7 +212,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error("Critical Booster Error:", error);
-    // Return a structured JSON error instead of letting the server crash
     return NextResponse.json({error: `An internal server error occurred: ${error.message}`}, {status: 500});
   }
 }
