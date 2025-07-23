@@ -16,16 +16,17 @@ function getNextKey() {
   return key;
 }
 
-async function makeRequest(request: any, apiKey: string) {
+async function makeRequest(request: any, key: any) {
     const { model, prompt, type, steps, stream } = request;
     
     const headers = {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${key.apiKey}`,
         'Content-Type': 'application/json'
     };
 
     let url: string;
     let body: any;
+    let fetchOptions: RequestInit;
 
     if (type === 'chat') {
         url = `${TOGETHER_API_BASE_URL}chat/completions`;
@@ -34,15 +35,13 @@ async function makeRequest(request: any, apiKey: string) {
             messages: [{ role: 'user', content: prompt }],
             stream: stream,
         };
-        const fetchOptions: RequestInit = {
+        fetchOptions = {
             method: 'POST',
             headers,
             body: JSON.stringify(body),
             // @ts-expect-error
             duplex: 'half',
         };
-        return await fetch(url, fetchOptions);
-
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
         body = {
@@ -52,15 +51,37 @@ async function makeRequest(request: any, apiKey: string) {
             steps: steps,
             response_format: "b64_json"
         };
-        const fetchOptions: RequestInit = {
+        fetchOptions = {
             method: 'POST',
             headers,
             body: JSON.stringify(body),
         };
-        return await fetch(url, fetchOptions);
-
     } else {
         throw new Error(`Unsupported model type: ${type}`);
+    }
+
+    try {
+        const res = await fetch(url, fetchOptions);
+        const resText = await res.text();
+
+        if (!res.ok) {
+            let errorBody;
+            try {
+                // Try to parse as JSON first
+                errorBody = JSON.parse(resText);
+            } catch (e) {
+                // If it's not JSON, it might be an HTML error page or plain text
+                errorBody = { error: { message: resText } };
+            }
+            throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`);
+        }
+        
+        const value = JSON.parse(resText);
+        // Important: Return a structure that matches Promise.allSettled 'fulfilled'
+        return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
+    } catch (error: any) {
+        // Important: Return a structure that matches Promise.allSettled 'rejected'
+        return { status: 'rejected', reason: { message: error.message || 'Unknown error' }, keyId: key.keyId };
     }
 }
 
@@ -71,27 +92,8 @@ export async function POST(req: NextRequest) {
     if (!streamAll) {
        const promises = requests.map(async (r: any) => {
             const key = getNextKey();
-            try {
-                const res = await makeRequest(r, key.apiKey);
-                const resText = await res.text();
-                
-                if (!res.ok) {
-                    let errorBody;
-                    try {
-                        errorBody = JSON.parse(resText);
-                    } catch (e) {
-                        // The response is not valid JSON, treat it as plain text.
-                        errorBody = { error: { message: resText } };
-                    }
-                    throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`);
-                }
-                
-                const value = JSON.parse(resText);
-                return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
-
-            } catch (error: any) {
-                 return { status: 'rejected', reason: { message: error.message || 'Unknown error' }, keyId: key.keyId };
-            }
+            // The makeRequest function now handles its own try/catch and returns a standard success/fail object.
+            return makeRequest(r, key);
         });
 
         const results = await Promise.all(promises);
@@ -106,7 +108,21 @@ export async function POST(req: NextRequest) {
         const processRequest = async (request: any, index: number) => {
           const key = getNextKey();
           try {
-            const response = await makeRequest(request, key.apiKey);
+            const fetchOptions: RequestInit = {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${key.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                 body: JSON.stringify({
+                    model: request.model,
+                    messages: [{ role: 'user', content: request.prompt }],
+                    stream: true,
+                }),
+                // @ts-expect-error
+                duplex: 'half',
+            };
+            const response = await fetch(`${TOGETHER_API_BASE_URL}chat/completions`, fetchOptions);
 
             if (!response.ok) {
                 const errorText = await response.text();
@@ -162,7 +178,7 @@ export async function POST(req: NextRequest) {
               }
 
             } else {
-              // Non-streaming chat or image
+              // Non-streaming chat or image - this path is less likely to be used with the current UI
               const data = await response.json();
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: {...data, keyId: key.keyId}, keyId: key.keyId })}\n\n`));
             }
@@ -189,6 +205,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (error: any) {
+    console.error("Critical Booster Error:", error);
     return NextResponse.json({error: error.message}, {status: 500});
   }
 }
