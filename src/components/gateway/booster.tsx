@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -16,69 +17,32 @@ interface BoosterProps {
     isLoading: boolean;
 }
 
-interface BoosterPrompt {
-    id: string;
-    prompt: string;
-    modelId: string;
-}
-
-const BoosterPromptGroup = ({ group, models, updateGroup, removeGroup }: { group: BoosterPrompt, models: Model[], updateGroup: (id: string, newGroup: Partial<BoosterPrompt>) => void, removeGroup: (id: string) => void }) => {
-    return (
-        <div className="booster-prompt-group">
-            <Textarea
-                placeholder="Enter prompt here..."
-                value={group.prompt}
-                onChange={(e) => updateGroup(group.id, { prompt: e.target.value })}
-            />
-            <Select onValueChange={(modelId) => updateGroup(group.id, { modelId })} defaultValue={group.modelId}>
-                <SelectTrigger>
-                    <SelectValue placeholder="Select a model" />
-                </SelectTrigger>
-                <SelectContent>
-                    {models.map(model => (
-                        <SelectItem key={model.id} value={model.id}>
-                            {model.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-            <Button onClick={() => removeGroup(group.id)} variant="destructive">Remove</Button>
-        </div>
-    );
-};
-
 export function Booster({ models, setStatus, setResponse, setIsLoading, isLoading }: BoosterProps) {
-    const [promptGroups, setPromptGroups] = useState<BoosterPrompt[]>([
-        { id: `group-${Date.now()}`, prompt: '', modelId: models[0].id }
-    ]);
+    const chatModels = models.filter(m => m.type === 'chat');
+    const [prompts, setPrompts] = useState('');
+    const [modelId, setModelId] = useState<string | undefined>(chatModels[0]?.id);
     const [stream, setStream] = useState(true);
 
-    const addBoosterPromptGroup = () => {
-        setPromptGroups(prev => [...prev, { id: `group-${Date.now()}`, prompt: '', modelId: models[0].id }]);
-    };
-    
-    const updateBoosterPromptGroup = (id: string, newGroup: Partial<BoosterPrompt>) => {
-        setPromptGroups(prev => prev.map(g => g.id === id ? { ...g, ...newGroup } : g));
-    };
-
-    const removeBoosterPromptGroup = (id: string) => {
-        setPromptGroups(prev => prev.filter(g => g.id !== id));
-    };
-
     const handleBoost = async () => {
-        const requests = promptGroups
-            .filter(g => g.prompt.trim())
-            .map(g => {
-                const model = models.find(m => m.id === g.modelId);
-                const isChat = model?.type === 'chat';
-                return {
-                    prompt: g.prompt,
-                    model: g.modelId,
-                    type: model?.type,
-                    steps: model?.steps,
-                    stream: isChat ? stream : undefined, // Only add stream for chat models
-                };
-            });
+        if (!modelId) {
+            alert('Please select a chat model.');
+            return;
+        }
+        const promptList = prompts.split('\n').filter(p => p.trim());
+        if (promptList.length === 0) {
+            alert('Please enter at least one prompt.');
+            return;
+        }
+
+        const model = models.find(m => m.id === modelId);
+
+        const requests = promptList.map(prompt => ({
+            prompt,
+            model: modelId,
+            type: model?.type,
+            steps: model?.steps,
+            stream: model?.type === 'chat' ? stream : undefined,
+        }));
         
         if (requests.length === 0) {
             alert('Please enter at least one prompt in the booster section.');
@@ -94,7 +58,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
         const apiUrl = "/api/v1/booster/generate";
 
         try {
-            if (stream) {
+            if (stream && model?.type === 'chat') {
                  const response = await fetch(apiUrl, { method: 'POST', headers, body });
                  if (!response.ok) {
                     const errorText = await response.text();
@@ -126,7 +90,11 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                             }
                             try {
                                 const json = JSON.parse(data);
-                                const { index, type, status, content, reason, keyId } = json;
+                                const { index, status, content, reason, keyId } = json;
+                                
+                                if (boosterResults[index] === null) {
+                                    boosterResults[index] = { status: 'pending', content: '', keyId: '' };
+                                }
                                 
                                 if (boosterResults[index].status === 'pending') {
                                     boosterResults[index].status = status;
@@ -161,6 +129,10 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                 if (!res.ok) {
                     throw new Error(`Gateway Error (${res.status}): ${results.error || 'Unknown booster error'}`);
                 }
+                
+                if(results.error) {
+                    throw new Error(`Gateway Error: ${results.error}`);
+                }
 
                 setStatus({ message: `Boost complete! Processed ${results.length} prompts.`, type: 'success' });
                 setResponse({ type: 'boost', results, requests });
@@ -175,27 +147,48 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
         }
     };
 
+     if (chatModels.length === 0) {
+        return null;
+    }
+
     return (
         <div className="mb-8 p-4 border rounded-lg">
             <h2 className="text-xl font-semibold mb-2">Booster</h2>
-            <div id="booster-prompts-container">
-                {promptGroups.map(group => (
-                    <BoosterPromptGroup 
-                        key={group.id}
-                        group={group}
-                        models={models}
-                        updateGroup={updateBoosterPromptGroup}
-                        removeGroup={removeBoosterPromptGroup}
+            <p className="text-sm text-muted-foreground mb-4">Bulk process chat prompts by entering one prompt per line.</p>
+            <div className="grid gap-4">
+                 <div>
+                    <Label htmlFor="booster-model-select">Chat Model</Label>
+                    <Select onValueChange={setModelId} defaultValue={modelId}>
+                        <SelectTrigger id="booster-model-select">
+                            <SelectValue placeholder="Select a chat model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {chatModels.map(model => (
+                                <SelectItem key={model.id} value={model.id}>
+                                    {model.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                 <div>
+                    <Label htmlFor="booster-prompts-textarea">Prompts (one per line)</Label>
+                    <Textarea
+                        id="booster-prompts-textarea"
+                        placeholder="Write a poem about robots&#10;Summarize the plot of Hamlet&#10;Translate 'hello world' to French"
+                        value={prompts}
+                        onChange={(e) => setPrompts(e.target.value)}
+                        rows={5}
                     />
-                ))}
+                </div>
             </div>
-            <div className="flex items-center space-x-2 my-2">
+
+            <div className="flex items-center space-x-2 my-4">
                 <Checkbox id="boosterStreamCheckbox" checked={stream} onCheckedChange={(checked) => setStream(Boolean(checked))} />
                 <Label htmlFor="boosterStreamCheckbox">Stream Responses</Label>
             </div>
             <div className="flex gap-2 mt-2">
-              <Button onClick={addBoosterPromptGroup}>Add Prompt</Button>
-              <Button onClick={handleBoost} disabled={isLoading}>Boost</Button>
+              <Button onClick={handleBoost} disabled={isLoading || !prompts.trim() || !modelId}>Boost Prompts</Button>
             </div>
         </div>
     )
