@@ -89,7 +89,10 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             }
             if (imageContent) {
                  content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md" />
-            } else {
+            } else if (result.status === 'fulfilled') {
+                 content = <p className="text-red-500">Error: Could not parse image.</p>;
+            }
+            else {
                  content = <p className="text-gray-500">Processing image...</p>;
             }
         } else {
