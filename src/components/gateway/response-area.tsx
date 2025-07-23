@@ -142,12 +142,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 );
              case 'boost_stream':
                 return (
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {response.results.map((result: any, index: number) => {
                              const request = response.requests[index];
                              return (
-                                <div key={index} className="p-4 border rounded-lg shadow-md flex flex-col">
-                                    <p className="font-bold text-sm text-green-600 border-b pb-2 mb-2 font-mono truncate" title={request.prompt}>
+                                <div key={index} className="p-4 bg-white border rounded-lg shadow-sm flex flex-col text-center">
+                                    <p className="font-semibold text-sm text-green-700 mb-2 h-10 flex items-center justify-center" title={request.prompt}>
                                        {request.prompt}
                                     </p>
                                     <div className="flex-grow flex flex-col justify-center items-center">{renderStreamedBoostResult(result, request)}</div>
