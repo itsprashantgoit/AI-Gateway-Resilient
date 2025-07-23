@@ -86,3 +86,16 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.booster-prompt-group {
+    @apply flex items-center gap-2 mb-2;
+}
+.status {
+    @apply p-2 rounded-md;
+}
+.status.success {
+    @apply bg-green-100 text-green-800;
+}
+.status.error {
+    @apply bg-red-100 text-red-800;
+}
