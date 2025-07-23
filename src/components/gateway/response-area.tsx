@@ -16,11 +16,11 @@ export function ResponseArea({ response }: ResponseAreaProps) {
 
     if (!response) return <div id="response-area" className="mt-4 p-4 border rounded-lg min-h-[100px]"></div>;
 
-    const handleCopy = async (text: string) => {
+    const handleCopy = async (text: string, index: number) => {
         try {
             await navigator.clipboard.writeText(text);
-            setCopiedText(text);
-            setTimeout(() => setCopiedText(null), 2000); // Reset after 2 seconds
+            setCopiedText(`${text}-${index}`);
+            setTimeout(() => setCopiedText(null), 2000);
         } catch (err) {
             console.error('Failed to copy text: ', err);
         }
@@ -44,7 +44,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         )
     }
 
-    const renderBoostResult = (result: any, request: any) => {
+    const renderBoostResult = (result: any, request: any, index: number) => {
          if (!result) {
             return <p className="text-gray-500">Waiting for response...</p>;
         }
@@ -61,9 +61,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 const chatContent = value.choices[0].message.content;
                 content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>
                 actions = (
-                     <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent)}>
+                     <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent, index)}>
                         <Copy className="h-4 w-4 mr-1" />
-                        {copiedText === chatContent ? 'Copied!' : 'Copy'}
+                        {copiedText === `${chatContent}-${index}` ? 'Copied!' : 'Copy'}
                     </Button>
                 )
             } else { // image
@@ -102,7 +102,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         )
     };
 
-    const renderStreamedBoostResult = (result: any, request: any) => {
+    const renderStreamedBoostResult = (result: any, request: any, index: number) => {
         if (!result || result.status === 'pending') {
             return <div className="flex-grow flex items-center justify-center"><p className="text-gray-500">Waiting for response...</p></div>;
         }
@@ -118,9 +118,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>;
             if (result.status !== 'streaming') {
                  actions = (
-                    <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent, index)}>
                         <Copy className="h-4 w-4 mr-1" />
-                        {copiedText === chatContent ? 'Copied!' : 'Copy'}
+                        {copiedText === `${chatContent}-${index}` ? 'Copied!' : 'Copy'}
                     </Button>
                 );
             }
@@ -167,9 +167,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                     <div className="flex flex-col items-start gap-2">
                         <p className="whitespace-pre-wrap">{response.content}</p>
                          <div className="w-full flex flex-col items-start mt-2">
-                             <Button variant="outline" size="sm" onClick={() => handleCopy(response.content)}>
+                             <Button variant="outline" size="sm" onClick={() => handleCopy(response.content, -1)}>
                                 <Copy className="h-4 w-4 mr-1" />
-                                {copiedText === response.content ? 'Copied!' : 'Copy'}
+                                {copiedText === `${response.content}--1` ? 'Copied!' : 'Copy'}
                             </Button>
                             {renderKey(response.keyId)}
                         </div>
@@ -200,7 +200,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                                     <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    {renderBoostResult(result, request)}
+                                    {renderBoostResult(result, request, index)}
                                 </Card>
                              )
                         })}
@@ -216,7 +216,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                                     <p className="font-semibold text-sm text-foreground border-b pb-2 mb-2 font-sans truncate" title={request.prompt}>
                                         {request.prompt}
                                     </p>
-                                    {renderStreamedBoostResult(result, request)}
+                                    {renderStreamedBoostResult(result, request, index)}
                                 </Card>
                              )
                         })}
