@@ -20,27 +20,35 @@ export function ResponseArea({ response }: ResponseAreaProps) {
     }
 
     const renderBoostResult = (result: any, request: any) => {
+        let content;
+        let keyId;
+
         if (result.status === 'fulfilled') {
-            const content = request.type === 'chat' ? (
-                <p>{result.value.choices[0].message.content}</p>
-            ) : (
-                result.value.data && result.value.data[0] && result.value.data[0].b64_json ? (
-                    <Image src={`data:image/png;base64,${result.value.data[0].b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
-                ) : <p className="text-red-500">Error: Image data not found.</p>
-            );
-            return (
-                <>
-                    {content}
-                    {renderKey(result.value.keyId)}
-                </>
-            )
-        }
-        return (
-            <>
+            const value = result.value;
+            keyId = value.keyId;
+
+            if (request.type === 'chat') {
+                content = <p>{value.choices[0].message.content}</p>
+            } else { // image
+                if (value.data && value.data[0] && value.data[0].b64_json) {
+                    content = <Image src={`data:image/png;base64,${value.data[0].b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
+                } else {
+                    content = <p className="text-red-500">Error: Image data not found.</p>
+                }
+            }
+        } else { // rejected
+            keyId = result.keyId;
+            content = (
                 <p className="text-red-500">
                     Failed to process prompt: {result.reason?.message || JSON.stringify(result.reason)}
                 </p>
-                {renderKey(result.keyId)}
+            );
+        }
+
+        return (
+            <>
+                {content}
+                {renderKey(keyId)}
             </>
         )
     };
@@ -102,15 +110,15 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 return <p className="text-red-500">{response.content}</p>
             case 'boost':
                 return (
-                    <div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {response.results.map((result: any, index: number) => {
                              const request = response.requests[index];
                              return (
-                                <div key={index} className="mb-4 p-4 border rounded-lg shadow-md">
-                                    <p className="font-bold text-green-600 border-b pb-2 mb-2 font-mono">
-                                        Prompt: "{request.prompt}" (Model: {request.model})
+                                <div key={index} className="p-4 border rounded-lg shadow-md flex flex-col">
+                                    <p className="font-bold text-sm text-green-600 border-b pb-2 mb-2 font-mono truncate" title={request.prompt}>
+                                        {request.prompt}
                                     </p>
-                                    <div>{renderBoostResult(result, request)}</div>
+                                    <div className="flex-grow flex flex-col justify-center items-center">{renderBoostResult(result, request)}</div>
                                 </div>
                              )
                         })}
@@ -118,15 +126,15 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                 );
              case 'boost_stream':
                 return (
-                     <div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {response.results.map((result: any, index: number) => {
                              const request = response.requests[index];
                              return (
-                                <div key={index} className="mb-4 p-4 border rounded-lg shadow-md">
-                                    <p className="font-bold text-green-600 border-b pb-2 mb-2 font-mono">
-                                        Prompt: "{request.prompt}" (Model: {request.model})
+                                <div key={index} className="p-4 border rounded-lg shadow-md flex flex-col">
+                                    <p className="font-bold text-sm text-green-600 border-b pb-2 mb-2 font-mono truncate" title={request.prompt}>
+                                       {request.prompt}
                                     </p>
-                                    <div>{renderStreamedBoostResult(result, request)}</div>
+                                    <div className="flex-grow flex flex-col justify-center items-center">{renderStreamedBoostResult(result, request)}</div>
                                 </div>
                              )
                         })}

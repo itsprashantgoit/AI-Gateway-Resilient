@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -8,6 +9,7 @@ import { ResponseArea } from '@/components/gateway/response-area';
 import { StatusDisplay } from '@/components/gateway/status-display';
 import type { Model } from '@/components/gateway/models';
 import { models } from '@/components/gateway/models';
+import { ImageStudio } from '@/components/gateway/image-studio';
 
 export default function GatewayTesterPage() {
   const [status, setStatus] = useState({ message: '', type: '' });
@@ -28,6 +30,14 @@ export default function GatewayTesterPage() {
 
       <Booster 
         models={models} 
+        setStatus={setStatus}
+        setResponse={setResponse}
+        setIsLoading={setIsLoading}
+        isLoading={isLoading}
+      />
+
+      <ImageStudio
+        models={models.filter(m => m.type === 'image')}
         setStatus={setStatus}
         setResponse={setResponse}
         setIsLoading={setIsLoading}
