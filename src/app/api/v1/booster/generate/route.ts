@@ -26,6 +26,10 @@ async function makeRequest(request: any, apiKey: string) {
 
     let url: string;
     let body: any;
+    let fetchOptions: RequestInit = {
+        method: 'POST',
+        headers,
+    };
 
     if (type === 'chat') {
         url = `${TOGETHER_API_BASE_URL}chat/completions`;
@@ -34,6 +38,9 @@ async function makeRequest(request: any, apiKey: string) {
             messages: [{ role: 'user', content: prompt }],
             stream: stream,
         };
+        fetchOptions.body = JSON.stringify(body);
+        // @ts-expect-error
+        fetchOptions.duplex = 'half';
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
         body = {
@@ -42,17 +49,12 @@ async function makeRequest(request: any, apiKey: string) {
             n: 1,
             steps: steps,
         };
+        fetchOptions.body = JSON.stringify(body);
     } else {
         throw new Error(`Unsupported model type: ${type}`);
     }
 
-    const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(body),
-        // @ts-expect-error
-        duplex: 'half',
-    });
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
         const errorBody = await response.json();

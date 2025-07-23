@@ -20,7 +20,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
     }
 
     const renderBoostResult = (result: any, request: any) => {
-        if (!result) {
+         if (!result) {
             return <p className="text-gray-500">Waiting for response...</p>;
         }
         
@@ -72,6 +72,8 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             )
         }
         let content;
+        let keyId = result.keyId;
+
         if (request.type === 'chat') {
             const chatContent = (typeof result.content === 'object' && result.content !== null && result.content.choices)
                 ? result.content.choices[0].message.content
@@ -80,6 +82,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         }
         else if (request.type === 'image') {
             const imageContent = result.content?.data?.[0]?.b64_json;
+             if (result.content.keyId) {
+                keyId = result.content.keyId;
+            }
             content = imageContent ? (
                  <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
             ) : <p className="text-gray-500">Processing image...</p>
@@ -90,7 +95,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         return (
             <>
                 {content}
-                {renderKey(result.keyId)}
+                {renderKey(keyId)}
             </>
         )
     }
