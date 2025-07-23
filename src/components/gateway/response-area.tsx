@@ -65,7 +65,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         if (!result || result.status === 'pending') {
             return <p className="text-gray-500">Waiting for response...</p>;
         }
-        if (result.status === 'rejected' || (result.status === 'counted' && !result.content)) {
+        if (result.status === 'rejected') {
             return (
                 <>
                     <p className="text-red-500">Error: {result.content || 'An unknown error occurred.'}</p>
@@ -77,14 +77,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         let keyId = result.keyId;
 
         if (request.type === 'chat') {
-            // Handle both streaming content (string) and final fulfilled content (object)
-            const chatContent = (result.status === 'fulfilled' || result.status === 'counted') && result.content?.choices
+            const chatContent = (result.status === 'fulfilled' && result.content?.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
             content = <p>{chatContent}</p>
         }
         else if (request.type === 'image') {
-            // The final content for an image is an object containing the b64_json
             const imageContent = result.content?.data?.[0]?.b64_json;
              if (result.content?.keyId) {
                 keyId = result.content.keyId;
@@ -92,7 +90,6 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             if (imageContent) {
                  content = <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md" />
             } else {
-                 // It might be streaming or still processing, show a pending state
                  content = <p className="text-gray-500">Processing image...</p>;
             }
         } else {
