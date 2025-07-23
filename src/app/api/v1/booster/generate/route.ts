@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
            return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId: key?.keyId } };
          }
        });
-       const results = await Promise.all(results);
+       const results = await Promise.all(promises);
        return NextResponse.json(results);
     }
     
