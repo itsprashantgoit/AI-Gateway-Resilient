@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
             } else {
               // Non-streaming chat or image
               const data = await response.json();
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: data, keyId: key.keyId })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: {...data, keyId: key.keyId}, keyId: key.keyId })}\n\n`));
             }
 
           } catch (e: any) {

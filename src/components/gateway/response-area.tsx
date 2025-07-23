@@ -20,7 +20,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
     }
 
     const renderBoostResult = (result: any, request: any) => {
-         if (result.status === 'fulfilled') {
+        if (result.status === 'fulfilled') {
             const content = request.type === 'chat' ? (
                 <p>{result.value.choices[0].message.content}</p>
             ) : (
@@ -37,10 +37,10 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         }
         return (
             <>
-             <p className="text-red-500">
-                Failed to process prompt: {result.reason?.message || JSON.stringify(result.reason)}
-            </p>
-             {renderKey(result.keyId)}
+                <p className="text-red-500">
+                    Failed to process prompt: {result.reason?.message || JSON.stringify(result.reason)}
+                </p>
+                {renderKey(result.keyId)}
             </>
         )
     };
@@ -59,7 +59,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         }
         let content;
         if (request.type === 'chat') {
-            const chatContent = typeof result.content === 'object' && result.content !== null
+            const chatContent = (typeof result.content === 'object' && result.content !== null && result.content.choices)
                 ? result.content.choices[0].message.content
                 : result.content;
             content = <p>{chatContent}</p>
@@ -76,7 +76,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         return (
             <>
                 {content}
-                {result.status !== 'streaming' && renderKey(result.keyId)}
+                {renderKey(result.keyId)}
             </>
         )
     }

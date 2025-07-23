@@ -50,7 +50,6 @@ export async function POST(req: Request) {
     if (stream && response.body) {
       const responseStream = new ReadableStream({
         async start(controller) {
-          // Send the key ID first
           const keyIdChunk = `event: key\ndata: ${JSON.stringify({keyId: keyInfo.keyId})}\n\n`;
           controller.enqueue(new TextEncoder().encode(keyIdChunk));
           
@@ -60,8 +59,14 @@ export async function POST(req: Request) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
+              // Pass through the stream from together.ai
               const chunk = decoder.decode(value, { stream: true });
-              controller.enqueue(new TextEncoder().encode(chunk));
+              const lines = chunk.split('\n');
+              for(const line of lines) {
+                if (line.startsWith('data:')) {
+                    controller.enqueue(new TextEncoder().encode(`data: ${line.substring(5)}\n\n`));
+                }
+              }
             }
           } catch (error) {
             console.error('Streaming error:', error);
@@ -83,7 +88,6 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json();
-    // Add keyId to non-streaming response
     return NextResponse.json({...data, keyId: keyInfo.keyId});
 
   } catch (error: any) {
