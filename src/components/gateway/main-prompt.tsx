@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from 'react';
@@ -56,7 +57,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
             if (selectedModel.type === 'chat' && stream) {
                 setStatus({ message: 'Streaming response...', type: '' });
                 let fullResponse = '';
-                let keyId = '';
+                
                 const response = await fetch(apiUrl, { method: 'POST', headers: headers, body: body });
 
                 if (!response.ok) {
@@ -88,7 +89,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                                 const data = dataLine.substring(5).trim();
                                 try {
                                     const json = JSON.parse(data);
-                                    keyId = json.keyId;
+                                    setResponse((prev: any) => ({ ...prev, type: 'chat', keyId: json.keyId }));
                                 } catch (e) {
                                     console.log("Error parsing keyId from stream", data);
                                 }
@@ -104,7 +105,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                                 const json = JSON.parse(data);
                                 if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                     fullResponse += json.choices[0].delta.content;
-                                    setResponse({ type: 'chat', content: fullResponse, keyId: keyId });
+                                    setResponse((prev: any) => ({ ...prev, type: 'chat', content: fullResponse }));
                                 }
                             } catch (e) {
                                 // This can happen with incomplete JSON objects, so we'll just log and continue
