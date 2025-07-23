@@ -1,3 +1,4 @@
+
 "use client";
 
 import Image from 'next/image';
@@ -34,7 +35,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             return <p className="text-red-500">Error: {result.content}</p>
         }
         if (request.type === 'chat') {
-            return <p>{result.content}</p>
+            // For streamed chat, content is a string.
+            // For fulfilled chat, content is an object.
+            const chatContent = typeof result.content === 'object' && result.content !== null
+                ? result.content.choices[0].message.content
+                : result.content;
+            return <p>{chatContent}</p>
         }
         if (request.type === 'image') {
             const imageContent = result.content?.data?.[0]?.b64_json;
