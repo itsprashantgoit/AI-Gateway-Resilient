@@ -17,7 +17,7 @@ function getNextKey() {
 }
 
 async function makeRequest(request: any, key: any) {
-    const { model, prompt, type, steps } = request;
+    const { model, prompt, type, steps, stream } = request;
 
     const headers = {
         'Authorization': `Bearer ${key.apiKey}`,
@@ -26,19 +26,13 @@ async function makeRequest(request: any, key: any) {
 
     let url: string;
     let body: any;
-    let fetchOptions: RequestInit;
 
     if (type === 'chat') {
         url = `${TOGETHER_API_BASE_URL}chat/completions`;
         body = {
             model: model,
             messages: [{ role: 'user', content: prompt }],
-            stream: false, 
-        };
-        fetchOptions = {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
+            stream: !!stream, 
         };
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
@@ -49,27 +43,50 @@ async function makeRequest(request: any, key: any) {
             steps: steps,
             response_format: "b64_json"
         };
-        fetchOptions = {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-        };
     } else {
         throw new Error(`Unsupported model type: ${type}`);
     }
+
+    const fetchOptions: RequestInit = {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body),
+    };
+
+    // For streaming chat, we need to handle the response differently
+    if (type === 'chat' && stream) {
+        // This is handled in the main POST function's streaming path
+        // This function will just be used for non-streaming or image calls in the booster
+         body.stream = false; // Force non-streaming for this path
+    }
+
 
     const res = await fetch(url, fetchOptions);
 
     if (!res.ok) {
         let errorBody;
+        let errorMessage;
         const resText = await res.text();
         try {
             errorBody = JSON.parse(resText);
+            errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || resText;
         } catch (e) {
-            errorBody = { error: { message: resText } };
+            errorMessage = resText;
         }
-        const errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`;
-        throw new Error(errorMessage);
+
+        let specificError = `API Error (Status ${res.status})`;
+        switch (res.status) {
+            case 400: specificError = `400 - Invalid Request: ${errorMessage}`; break;
+            case 401: specificError = `401 - Authentication Error: Check your API Key.`; break;
+            case 402: specificError = `402 - Payment Required: Account spending limit reached.`; break;
+            case 403: specificError = `403 - Bad Request: Token limit likely exceeded.`; break;
+            case 404: specificError = `404 - Not Found: Invalid model name or API endpoint.`; break;
+            case 429: specificError = `429 - Rate Limit Exceeded: Too many requests.`; break;
+            case 500: specificError = `500 - Server Error: Issue on provider's side.`; break;
+            case 503: specificError = `503 - Engine Overloaded: High traffic on provider's side.`; break;
+        }
+
+        throw new Error(specificError);
     }
     
     const value = await res.json();
@@ -84,7 +101,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid 'requests' field. Expected an array." }, { status: 400 });
     }
     
-    // Non-streaming path for Booster (chat) and Image Studio
     if (!streamAll) {
        const promises = requests.map(async (r: any) => {
          let key;
@@ -93,7 +109,7 @@ export async function POST(req: NextRequest) {
            const value = await makeRequest(r, key);
            return { status: 'fulfilled', value };
          } catch (error: any) {
-           return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId: key?.keyId } };
+           return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId: key?.keyId || 'unknown' } };
          }
        });
        const results = await Promise.all(promises);
@@ -167,13 +183,11 @@ export async function POST(req: NextRequest) {
                           try {
                               const json = JSON.parse(data);
                               if (!finalData) {
-                                  // Create a finalData structure that matches the non-streaming one
                                   finalData = { ...json, choices: [{ message: { content: "" }, finish_reason: null, index: 0 }] };
                               }
                               if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                  const contentChunk = json.choices[0].delta.content;
                                  fullResponse += contentChunk;
-                                 // Stream chunk
                                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk, keyId: key.keyId })}\n\n`));
                               }
                           } catch (e) {
@@ -184,7 +198,6 @@ export async function POST(req: NextRequest) {
               }
 
             } else {
-              // This path should not be hit if streamAll is true
               const data = await response.json();
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: {...data, keyId: key.keyId}, keyId: key.keyId })}\n\n`));
             }
@@ -195,7 +208,6 @@ export async function POST(req: NextRequest) {
           }
         };
 
-        // Process all requests concurrently
         await Promise.all(requests.map(processRequest));
 
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
