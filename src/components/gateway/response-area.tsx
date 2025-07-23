@@ -34,8 +34,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             if (request.type === 'chat') {
                 content = <p>{value.choices[0].message.content}</p>
             } else { // image
-                if (value.data && value.data[0] && value.data[0].b64_json) {
-                    content = <Image src={`data:image/png;base64,${value.data[0].b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
+                const b64_json = value?.data?.[0]?.b64_json;
+                if (b64_json) {
+                    content = <Image src={`data:image/png;base64,${b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
                 } else {
                     content = <p className="text-red-500">Error: Image data not found.</p>
                 }
