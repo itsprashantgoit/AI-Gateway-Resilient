@@ -44,8 +44,8 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
         setIsLoading(true);
         setStatus({ message: `Generating ${requests.length} images...`, type: '' });
         
-        let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
-        setResponse({ type: 'boost_stream', results: boosterResults, requests });
+        let initialResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
+        setResponse({ type: 'boost_stream', results: initialResults, requests });
 
         const headers = { 'Content-Type': 'application/json' };
         const body = JSON.stringify({ requests, stream: true });
@@ -62,51 +62,59 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             }
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
-            let receivedResults = 0;
+            let receivedCount = 0;
 
-            while (true) {
-               const { done, value } = await reader.read();
-               if (done) {
-                   break;
-               }
+            const processStream = async () => {
+              let boosterResults = [...initialResults];
+              while (true) {
+                 const { done, value } = await reader.read();
+                 if (done) {
+                     break;
+                 }
 
-               const chunk = decoder.decode(value, { stream: true });
-               const lines = chunk.split('\n\n');
+                 const chunk = decoder.decode(value, { stream: true });
+                 const lines = chunk.split('\n\n');
 
-               for (const line of lines) {
-                   if (line.trim().startsWith('data:')) {
-                       const data = line.substring(5).trim();
-                       if (data === '[DONE]') {
-                           continue;
-                       }
-                       try {
-                           const json = JSON.parse(data);
-                           const { index, status, content, reason, keyId } = json;
-                           
-                           boosterResults[index] = {
-                               status: status,
-                               content: status === 'fulfilled' ? content : (reason?.message || 'Unknown error'),
-                               keyId: keyId,
-                           };
+                 for (const line of lines) {
+                     if (line.trim().startsWith('data:')) {
+                         const data = line.substring(5).trim();
+                         if (data === '[DONE]') {
+                             continue;
+                         }
+                         try {
+                             const json = JSON.parse(data);
+                             const { index, status, content, reason, keyId } = json;
+                             
+                             if (index !== undefined && index < boosterResults.length) {
+                                boosterResults[index] = {
+                                    status: status,
+                                    content: status === 'fulfilled' ? content : (reason?.message || 'Unknown error'),
+                                    keyId: keyId,
+                                };
+    
+                                setResponse((prev: any) => ({
+                                    ...prev,
+                                    results: [...boosterResults]
+                                }));
+    
+                                if (status === 'fulfilled' || status === 'rejected') {
+                                     receivedCount++;
+                                }
+                             }
 
-                           setResponse((prev: any) => ({
-                               ...prev,
-                               results: [...boosterResults]
-                           }));
+                         } catch(e) {
+                             console.log('Skipping incomplete JSON chunk in image studio:', data);
+                         }
+                     }
+                 }
+              }
+               if (receivedCount === requests.length) {
+                  setStatus({ message: 'Image generation complete!', type: 'success' });
+              }
+            };
 
-                           if (status === 'fulfilled' || status === 'rejected') {
-                                receivedResults++;
-                           }
-
-                       } catch(e) {
-                           console.log('Skipping incomplete JSON chunk in image studio:', data);
-                       }
-                   }
-               }
-            }
-             if (receivedResults === requests.length) {
-                setStatus({ message: 'Image generation complete!', type: 'success' });
-            }
+            await processStream();
+        
         } catch (error: any) {
             console.error('Image Studio Fetch Error:', error);
             setResponse({ type: 'error', content: `An error occurred: ${error.message}` });
