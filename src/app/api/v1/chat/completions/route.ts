@@ -44,7 +44,13 @@ export async function POST(req: Request) {
     if (!response.ok) {
         const errorBody = await response.text();
         console.error("Upstream API Error:", errorBody);
-        return new NextResponse(errorBody, { status: response.status, headers: {'Content-Type': 'application/json'} });
+        // Ensure we return a JSON response even for upstream errors
+        try {
+            const parsedError = JSON.parse(errorBody);
+            return NextResponse.json(parsedError, { status: response.status });
+        } catch (e) {
+            return NextResponse.json({ error: { message: `Upstream API error: ${errorBody}` } }, { status: response.status });
+        }
     }
 
     if (stream && response.body) {
@@ -92,6 +98,6 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error('Proxy Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: { message: error.message } }, { status: 500 });
   }
 }

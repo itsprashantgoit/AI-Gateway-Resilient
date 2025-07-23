@@ -52,8 +52,10 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
         try {
             const res = await fetch(apiUrl, { method: 'POST', headers, body });
             const results = await res.json();
+            
             if (!res.ok) {
-                throw new Error(`Gateway Error (${res.status}): ${results.error || 'Unknown image studio error'}`);
+                 const errorMessage = results.error || `An unknown error occurred. Status: ${res.status}`;
+                 throw new Error(`Gateway Error: ${errorMessage}`);
             }
 
             setStatus({ message: `Generated ${results.length} images.`, type: 'success' });
@@ -96,7 +98,9 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                     <Label htmlFor="image-prompts-textarea">Prompts (one per line)</Label>
                     <Textarea
                         id="image-prompts-textarea"
-                        placeholder="A photorealistic cat astronaut on the moon&#10;A synthwave sunset over a futuristic city&#10;A detailed watercolor of a forest stream"
+                        placeholder="A photorealistic cat astronaut on the moon
+A synthwave sunset over a futuristic city
+A detailed watercolor of a forest stream"
                         value={prompts}
                         onChange={(e) => setPrompts(e.target.value)}
                         rows={5}

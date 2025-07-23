@@ -61,8 +61,8 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
             if (stream && model?.type === 'chat') {
                  const response = await fetch(apiUrl, { method: 'POST', headers, body });
                  if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Gateway Error (${response.status}): ${errorText}`);
+                    const errorJson = await response.json();
+                    throw new Error(`Gateway Error (${response.status}): ${errorJson.error || JSON.stringify(errorJson)}`);
                  }
                  if (!response.body) {
                     throw new Error("Response body is null");
@@ -175,7 +175,9 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                     <Label htmlFor="booster-prompts-textarea">Prompts (one per line)</Label>
                     <Textarea
                         id="booster-prompts-textarea"
-                        placeholder="Write a poem about robots&#10;Summarize the plot of Hamlet&#10;Translate 'hello world' to French"
+                        placeholder="Write a poem about robots
+Summarize the plot of Hamlet
+Translate 'hello world' to French"
                         value={prompts}
                         onChange={(e) => setPrompts(e.target.value)}
                         rows={5}

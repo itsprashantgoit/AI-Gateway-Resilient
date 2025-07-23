@@ -18,24 +18,24 @@ function getNextKey() {
 }
 
 export async function POST(req: Request) {
-  const incomingRequest = await req.json();
-  const { model, prompt, n, steps } = incomingRequest;
-  const keyInfo = getNextKey();
-
-  const headers = {
-    'Authorization': `Bearer ${keyInfo.apiKey}`,
-    'Content-Type': 'application/json'
-  };
-
-  const body = JSON.stringify({
-    model,
-    prompt,
-    n,
-    steps,
-    response_format: "b64_json"
-  });
-  
   try {
+    const incomingRequest = await req.json();
+    const { model, prompt, n, steps } = incomingRequest;
+    const keyInfo = getNextKey();
+
+    const headers = {
+      'Authorization': `Bearer ${keyInfo.apiKey}`,
+      'Content-Type': 'application/json'
+    };
+
+    const body = JSON.stringify({
+      model,
+      prompt,
+      n,
+      steps,
+      response_format: "b64_json"
+    });
+    
     const response = await fetch(TOGETHER_API_URL, {
       method: 'POST',
       headers,
@@ -48,13 +48,13 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
         console.error("Upstream API Error:", data);
-        return new NextResponse(JSON.stringify(data), { status: response.status, headers: {'Content-Type': 'application/json'} });
+        return NextResponse.json(data, { status: response.status });
     }
     
     return NextResponse.json({ ...data, keyId: keyInfo.keyId });
 
   } catch (error: any) {
     console.error('Proxy Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: { message: error.message } }, { status: 500 });
   }
 }

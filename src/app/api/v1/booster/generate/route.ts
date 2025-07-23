@@ -67,7 +67,7 @@ async function makeRequest(request: any, key: any) {
         }
 
         let specificError = `API Error (Status ${res.status})`;
-        switch (res.status) {
+         switch (res.status) {
             case 400: specificError = `400 - Invalid Request: ${errorMessage}`; break;
             case 401: specificError = `401 - Authentication Error: Check your API Key.`; break;
             case 402: specificError = `402 - Payment Required: Account spending limit reached.`; break;
@@ -104,8 +104,9 @@ export async function POST(req: NextRequest) {
            return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId: key?.keyId || 'unknown' } };
          }
        });
-       const results = await Promise.all(promises);
-       return NextResponse.json(results);
+       const results = await Promise.allSettled(promises);
+       const finalResults = results.map(r => r.status === 'fulfilled' ? r.value : r.reason);
+       return NextResponse.json(finalResults);
     }
     
     // Streaming path for Booster (chat only)

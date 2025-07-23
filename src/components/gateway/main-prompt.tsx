@@ -61,8 +61,8 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 const response = await fetch(apiUrl, { method: 'POST', headers: headers, body: body });
 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Gateway Error (${response.status}): ${errorText}`);
+                    const errorJson = await response.json();
+                    throw new Error(`Gateway Error (${response.status}): ${errorJson.error?.message || JSON.stringify(errorJson)}`);
                 }
 
                 if (!response.body) {
