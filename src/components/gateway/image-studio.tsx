@@ -3,11 +3,10 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import type { Model } from './models';
-import { X, PlusCircle } from 'lucide-react';
 
 interface ImageStudioProps {
     models: Model[];
@@ -18,30 +17,15 @@ interface ImageStudioProps {
 }
 
 export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLoading }: ImageStudioProps) {
-    const [prompts, setPrompts] = useState<string[]>(['']);
+    const [prompts, setPrompts] = useState('');
     const [modelId, setModelId] = useState<string | undefined>(models[0]?.id);
     
-    const handlePromptChange = (index: number, value: string) => {
-        const newPrompts = [...prompts];
-        newPrompts[index] = value;
-        setPrompts(newPrompts);
-    };
-
-    const addPrompt = () => {
-        setPrompts([...prompts, '']);
-    };
-
-    const removePrompt = (index: number) => {
-        const newPrompts = prompts.filter((_, i) => i !== index);
-        setPrompts(newPrompts);
-    };
-
     const handleGenerate = async () => {
         if (!modelId) {
             alert('Please select an image model.');
             return;
         }
-        const promptList = prompts.filter(p => p.trim());
+        const promptList = prompts.split('\n').filter(p => p.trim());
         if (promptList.length === 0) {
             alert('Please enter at least one prompt.');
             return;
@@ -146,7 +130,7 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
     return (
         <div className="mb-8 p-4 border rounded-lg">
             <h2 className="text-xl font-semibold mb-2">Image Studio</h2>
-            <p className="text-sm text-muted-foreground mb-4">Bulk generate images.</p>
+            <p className="text-sm text-muted-foreground mb-4">Bulk generate images (one per line).</p>
             <div className="grid gap-4">
                 <div>
                     <Label htmlFor="image-model-select">Image Model</Label>
@@ -164,32 +148,18 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                     </Select>
                 </div>
                 <div>
-                    <Label>Prompts</Label>
-                    <div className="space-y-2">
-                        {prompts.map((prompt, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                                <Input
-                                    type="text"
-                                    placeholder={`Prompt ${index + 1}`}
-                                    value={prompt}
-                                    onChange={(e) => handlePromptChange(index, e.target.value)}
-                                />
-                                {prompts.length > 1 && (
-                                    <Button variant="ghost" size="icon" onClick={() => removePrompt(index)}>
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                     <Button variant="outline" size="sm" onClick={addPrompt} className="mt-2">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add Prompt
-                    </Button>
+                    <Label>Prompts (one per line)</Label>
+                    <Textarea
+                        placeholder="Enter prompts here, one on each line..."
+                        value={prompts}
+                        onChange={(e) => setPrompts(e.target.value)}
+                        className="my-2"
+                        rows={5}
+                    />
                 </div>
             </div>
             <div className="flex gap-2 mt-4">
-              <Button onClick={handleGenerate} disabled={isLoading || prompts.every(p => !p.trim()) || !modelId}>Generate Images</Button>
+              <Button onClick={handleGenerate} disabled={isLoading || !prompts.trim() || !modelId}>Generate Images</Button>
             </div>
         </div>
     )
