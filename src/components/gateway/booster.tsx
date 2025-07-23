@@ -3,12 +3,11 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import type { Model } from './models';
-import { X, PlusCircle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface BoosterProps {
     models: Model[];
@@ -19,32 +18,16 @@ interface BoosterProps {
 }
 
 export function Booster({ models, setStatus, setResponse, setIsLoading, isLoading }: BoosterProps) {
-    const chatModels = models.filter(m => m.type === 'chat');
-    const [prompts, setPrompts] = useState<string[]>(['']);
-    const [modelId, setModelId] = useState<string | undefined>(chatModels[0]?.id);
+    const [prompts, setPrompts] = useState('');
+    const [modelId, setModelId] = useState<string | undefined>(models[0]?.id);
     const [stream, setStream] = useState(true);
-
-    const handlePromptChange = (index: number, value: string) => {
-        const newPrompts = [...prompts];
-        newPrompts[index] = value;
-        setPrompts(newPrompts);
-    };
-
-    const addPrompt = () => {
-        setPrompts([...prompts, '']);
-    };
-
-    const removePrompt = (index: number) => {
-        const newPrompts = prompts.filter((_, i) => i !== index);
-        setPrompts(newPrompts);
-    };
 
     const handleBoost = async () => {
         if (!modelId) {
             alert('Please select a chat model.');
             return;
         }
-        const promptList = prompts.filter(p => p.trim());
+        const promptList = prompts.split('\n').filter(p => p.trim());
         if (promptList.length === 0) {
             alert('Please enter at least one prompt.');
             return;
@@ -121,7 +104,11 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                                     if (status === 'streaming') {
                                         newResults[index].content += content;
                                     } else if (status === 'fulfilled') {
-                                        newResults[index].content = content;
+                                       if(typeof content === 'object' && content.choices) {
+                                            newResults[index].content = content.choices[0].message.content;
+                                        } else {
+                                            newResults[index].content = content;
+                                        }
                                     } else if (status === 'rejected') {
                                         newResults[index].status = 'rejected';
                                         newResults[index].content = reason.message || 'Unknown error';
@@ -161,14 +148,14 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
         }
     };
 
-     if (chatModels.length === 0) {
+    if (models.length === 0) {
         return null;
     }
 
     return (
         <div className="mb-8 p-4 border rounded-lg">
             <h2 className="text-xl font-semibold mb-2">Booster</h2>
-            <p className="text-sm text-muted-foreground mb-4">Bulk process chat prompts.</p>
+            <p className="text-sm text-muted-foreground mb-4">Send multiple chat prompts (one per line).</p>
             <div className="grid gap-4">
                  <div>
                     <Label htmlFor="booster-model-select">Chat Model</Label>
@@ -177,7 +164,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                             <SelectValue placeholder="Select a chat model" />
                         </SelectTrigger>
                         <SelectContent>
-                            {chatModels.map(model => (
+                            {models.map(model => (
                                 <SelectItem key={model.id} value={model.id}>
                                     {model.name}
                                 </SelectItem>
@@ -186,28 +173,14 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                     </Select>
                 </div>
                 <div>
-                    <Label>Prompts</Label>
-                    <div className="space-y-2">
-                        {prompts.map((prompt, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                                <Input
-                                    type="text"
-                                    placeholder={`Prompt ${index + 1}`}
-                                    value={prompt}
-                                    onChange={(e) => handlePromptChange(index, e.target.value)}
-                                />
-                                {prompts.length > 1 && (
-                                    <Button variant="ghost" size="icon" onClick={() => removePrompt(index)}>
-                                        <X className="h-4 w-4" />
-                                    </Button>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                    <Button variant="outline" size="sm" onClick={addPrompt} className="mt-2">
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Add Prompt
-                    </Button>
+                    <Label>Prompts (one per line)</Label>
+                    <Textarea
+                        placeholder="Enter prompts here, one on each line..."
+                        value={prompts}
+                        onChange={(e) => setPrompts(e.target.value)}
+                        className="my-2"
+                        rows={5}
+                    />
                 </div>
             </div>
 
@@ -216,7 +189,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                 <Label htmlFor="boosterStreamCheckbox">Stream Responses</Label>
             </div>
             <div className="flex gap-2 mt-2">
-              <Button onClick={handleBoost} disabled={isLoading || prompts.every(p => !p.trim()) || !modelId}>Boost Prompts</Button>
+              <Button onClick={handleBoost} disabled={isLoading || !prompts.trim() || !modelId}>Boost Prompts</Button>
             </div>
         </div>
     )
