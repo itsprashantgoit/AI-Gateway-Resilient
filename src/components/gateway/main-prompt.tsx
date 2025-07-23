@@ -7,8 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import type { Model } from './models';
-import { EventSourcePolyfill } from 'event-source-polyfill';
-
 
 interface MainPromptProps {
     models: Model[];
@@ -58,6 +56,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
             if (selectedModel.type === 'chat' && stream) {
                 setStatus({ message: 'Streaming response...', type: '' });
                 let fullResponse = '';
+                let keyId = '';
                 const response = await fetch(apiUrl, { method: 'POST', headers: headers, body: body });
 
                 if (!response.ok) {
@@ -83,6 +82,19 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                     const lines = chunk.split('\n');
                     
                     for (const line of lines) {
+                         if (line.trim().startsWith('event: key')) {
+                            const dataLine = lines.find(l => l.startsWith('data:'));
+                            if(dataLine) {
+                                const data = dataLine.substring(5).trim();
+                                try {
+                                    const json = JSON.parse(data);
+                                    keyId = json.keyId;
+                                } catch (e) {
+                                    console.log("Error parsing keyId from stream", data);
+                                }
+                            }
+                            continue;
+                        }
                         if (line.trim().startsWith('data:')) {
                             const data = line.substring(5).trim();
                             if (data === '[DONE]') {
@@ -92,7 +104,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                                 const json = JSON.parse(data);
                                 if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                     fullResponse += json.choices[0].delta.content;
-                                    setResponse({ type: 'chat', content: fullResponse });
+                                    setResponse({ type: 'chat', content: fullResponse, keyId: keyId });
                                 }
                             } catch (e) {
                                 // This can happen with incomplete JSON objects, so we'll just log and continue
@@ -114,10 +126,10 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 setStatus({ message: `Success!`, type: 'success' });
 
                 if (selectedModel.type === 'chat') {
-                    setResponse({ type: 'chat', content: data.choices[0].message.content });
+                    setResponse({ type: 'chat', content: data.choices[0].message.content, keyId: data.keyId });
                 } else { // image
                     if (data.data && data.data[0] && data.data[0].b64_json) {
-                       setResponse({ type: 'image', content: data.data[0].b64_json, alt: prompt });
+                       setResponse({ type: 'image', content: data.data[0].b64_json, alt: prompt, keyId: data.keyId });
                     } else {
                         console.error("Full API response:", data);
                         throw new Error("Image data (b64_json) not found in the API response.");

@@ -5,24 +5,25 @@ import keys from '@/keys.json';
 const TOGETHER_API_URL = 'https://api.together.xyz/v1/chat/completions';
 
 let keyIndex = 0;
-const togetherKeys = keys.filter(k => k.provider === 'together.ai').map(k => k.apiKey);
+const togetherKeys = keys.filter(k => k.provider === 'together.ai');
 
 function getNextKey() {
   if (togetherKeys.length === 0) {
     throw new Error("No keys available for together.ai");
   }
-  const key = togetherKeys[keyIndex];
+  const keyInfo = togetherKeys[keyIndex];
   keyIndex = (keyIndex + 1) % togetherKeys.length;
-  return key;
+  return keyInfo;
 }
 
 export async function POST(req: Request) {
   try {
     const incomingRequest = await req.json();
     const { model, messages, stream } = incomingRequest;
+    const keyInfo = getNextKey();
 
     const headers = {
-      'Authorization': `Bearer ${getNextKey()}`,
+      'Authorization': `Bearer ${keyInfo.apiKey}`,
       'Content-Type': 'application/json'
     };
 
@@ -36,7 +37,6 @@ export async function POST(req: Request) {
       method: 'POST',
       headers,
       body,
-      // Pass duplex: 'half' to stream responses.
       // @ts-expect-error
       duplex: 'half',
     });
@@ -50,6 +50,10 @@ export async function POST(req: Request) {
     if (stream && response.body) {
       const responseStream = new ReadableStream({
         async start(controller) {
+          // Send the key ID first
+          const keyIdChunk = `event: key\ndata: ${JSON.stringify({keyId: keyInfo.keyId})}\n\n`;
+          controller.enqueue(new TextEncoder().encode(keyIdChunk));
+          
           const reader = response.body!.getReader();
           const decoder = new TextDecoder();
           try {
@@ -79,7 +83,8 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    // Add keyId to non-streaming response
+    return NextResponse.json({...data, keyId: keyInfo.keyId});
 
   } catch (error: any) {
     console.error('Proxy Error:', error);

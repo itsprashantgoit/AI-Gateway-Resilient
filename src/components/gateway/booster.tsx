@@ -106,7 +106,7 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                  const reader = response.body.getReader();
                  const decoder = new TextDecoder();
 
-                 let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '' }));
+                 let boosterResults = Array(requests.length).fill(null).map(() => ({ status: 'pending', content: '', keyId: '' }));
 
                  while (true) {
                     const { done, value } = await reader.read();
@@ -126,11 +126,13 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                             }
                             try {
                                 const json = JSON.parse(data);
-                                const { index, type, status, content, reason } = json;
+                                const { index, type, status, content, reason, keyId } = json;
                                 
                                 if (boosterResults[index].status === 'pending') {
                                     boosterResults[index].status = status;
                                 }
+
+                                boosterResults[index].keyId = keyId;
 
                                 if (status === 'streaming') {
                                     boosterResults[index].content += content;

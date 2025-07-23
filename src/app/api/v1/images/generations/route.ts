@@ -6,7 +6,7 @@ import keys from '@/keys.json';
 const TOGETHER_API_URL = 'https://api.together.xyz/v1/images/generations';
 
 let keyIndex = 0;
-const togetherKeys = keys.filter(k => k.provider === 'together.ai').map(k => k.apiKey);
+const togetherKeys = keys.filter(k => k.provider === 'together.ai');
 
 function getNextKey() {
   if (togetherKeys.length === 0) {
@@ -20,9 +20,10 @@ function getNextKey() {
 export async function POST(req: Request) {
   const incomingRequest = await req.json();
   const { model, prompt, n, steps } = incomingRequest;
+  const keyInfo = getNextKey();
 
   const headers = {
-    'Authorization': `Bearer ${getNextKey()}`,
+    'Authorization': `Bearer ${keyInfo.apiKey}`,
     'Content-Type': 'application/json'
   };
 
@@ -48,10 +49,7 @@ export async function POST(req: Request) {
 
     const data = await response.json();
 
-    // The together.ai image generation response is different from OpenAI's.
-    // We need to adapt it to what the frontend expects (b64_json).
-    // The together.ai response has `data[].b64_json`.
-    return NextResponse.json(data);
+    return NextResponse.json({ ...data, keyId: keyInfo.keyId });
 
   } catch (error: any) {
     console.error('Proxy Error:', error);

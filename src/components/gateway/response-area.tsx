@@ -10,20 +10,38 @@ interface ResponseAreaProps {
 export function ResponseArea({ response }: ResponseAreaProps) {
     if (!response) return <div id="response-area" className="mt-4 p-4 border rounded-lg min-h-[100px]"></div>;
 
+    const renderKey = (keyId: string) => {
+        if (!keyId) return null;
+        return (
+            <div className="text-xs text-gray-500 font-mono mt-2 pt-2 border-t">
+                Key ID: {keyId}
+            </div>
+        )
+    }
+
     const renderBoostResult = (result: any, request: any) => {
          if (result.status === 'fulfilled') {
-            return request.type === 'chat' ? (
+            const content = request.type === 'chat' ? (
                 <p>{result.value.choices[0].message.content}</p>
             ) : (
                 result.value.data && result.value.data[0] && result.value.data[0].b64_json ? (
                     <Image src={`data:image/png;base64,${result.value.data[0].b64_json}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
                 ) : <p className="text-red-500">Error: Image data not found.</p>
+            );
+            return (
+                <>
+                    {content}
+                    {renderKey(result.value.keyId)}
+                </>
             )
         }
         return (
+            <>
              <p className="text-red-500">
                 Failed to process prompt: {result.reason?.message || JSON.stringify(result.reason)}
             </p>
+             {renderKey(result.keyId)}
+            </>
         )
     };
 
@@ -32,32 +50,54 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             return <p className="text-gray-500">Waiting for response...</p>;
         }
         if (result.status === 'rejected') {
-            return <p className="text-red-500">Error: {result.content}</p>
+            return (
+                <>
+                    <p className="text-red-500">Error: {result.content}</p>
+                    {renderKey(result.keyId)}
+                </>
+            )
         }
+        let content;
         if (request.type === 'chat') {
-            // For streamed chat, content is a string.
-            // For fulfilled chat, content is an object.
             const chatContent = typeof result.content === 'object' && result.content !== null
                 ? result.content.choices[0].message.content
                 : result.content;
-            return <p>{chatContent}</p>
+            content = <p>{chatContent}</p>
         }
-        if (request.type === 'image') {
+        else if (request.type === 'image') {
             const imageContent = result.content?.data?.[0]?.b64_json;
-            return imageContent ? (
+            content = imageContent ? (
                  <Image src={`data:image/png;base64,${imageContent}`} alt={request.prompt} width={256} height={256} className="max-w-full rounded-md mt-2" />
             ) : <p className="text-gray-500">Processing image...</p>
+        } else {
+            content = null;
         }
-        return null;
+
+        return (
+            <>
+                {content}
+                {result.status !== 'streaming' && renderKey(result.keyId)}
+            </>
+        )
     }
 
 
     const renderResponse = () => {
         switch (response.type) {
             case 'chat':
-                return <p>{response.content}</p>;
+                return (
+                    <>
+                        <p>{response.content}</p>
+                        {renderKey(response.keyId)}
+                    </>
+                );
             case 'image':
-                return <Image src={`data:image/png;base64,${response.content}`} alt={response.alt} width={512} height={512} />;
+                 return (
+                    <>
+                        <Image src={`data:image/png;base64,${response.content}`} alt={response.alt} width={512} height={512} />
+                        {renderKey(response.keyId)}
+                    </>
+                );
             case 'error':
                 return <p className="text-red-500">{response.content}</p>
             case 'boost':

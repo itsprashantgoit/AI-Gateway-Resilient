@@ -5,7 +5,7 @@ import keys from '@/keys.json';
 const TOGETHER_API_BASE_URL = 'https://api.together.xyz/v1/';
 
 let keyIndex = 0;
-const togetherKeys = keys.filter(k => k.provider === 'together.ai').map(k => k.apiKey);
+const togetherKeys = keys.filter(k => k.provider === 'together.ai');
 
 function getNextKey() {
   if (togetherKeys.length === 0) {
@@ -68,11 +68,11 @@ export async function POST(req: NextRequest) {
 
     if (!streamAll) {
        const promises = requests.map((r: any) => {
-            const apiKey = getNextKey();
-            return makeRequest(r, apiKey)
+            const key = getNextKey();
+            return makeRequest(r, key.apiKey)
               .then(res => res.json())
-              .then(value => ({ status: 'fulfilled', value }))
-              .catch(reason => ({ status: 'rejected', reason: { message: reason.message || 'Unknown error' } }));
+              .then(value => ({ status: 'fulfilled', value: { ...value, keyId: key.keyId } }))
+              .catch(reason => ({ status: 'rejected', reason: { message: reason.message || 'Unknown error' }, keyId: key.keyId }));
         });
 
         const results = await Promise.all(promises);
@@ -85,9 +85,9 @@ export async function POST(req: NextRequest) {
       async start(controller) {
         
         const processRequest = async (request: any, index: number) => {
-          const apiKey = getNextKey();
+          const key = getNextKey();
           try {
-            const response = await makeRequest(request, apiKey);
+            const response = await makeRequest(request, key.apiKey);
 
             if (request.type === 'chat' && request.stream && response.body) {
               const reader = response.body.getReader();
@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
                   if (done) {
                       if (finalData) {
                           finalData.choices[0].message.content = fullResponse;
-                           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData })}\n\n`));
+                           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData, keyId: key.keyId })}\n\n`));
                       }
                       break;
                   };
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
                                  const contentChunk = json.choices[0].delta.content;
                                  fullResponse += contentChunk;
                                  // Stream chunk
-                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk })}\n\n`));
+                                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk, keyId: key.keyId })}\n\n`));
                               }
                           } catch (e) {
                               // ignore incomplete json
@@ -133,11 +133,11 @@ export async function POST(req: NextRequest) {
             } else {
               // Non-streaming chat or image
               const data = await response.json();
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: data })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: request.type, status: 'fulfilled', content: data, keyId: key.keyId })}\n\n`));
             }
 
           } catch (e: any) {
-             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: e.message || 'Unknown error' } })}\n\n`));
+             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: e.message || 'Unknown error' }, keyId: key.keyId })}\n\n`));
           }
         };
 
