@@ -35,11 +35,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         document.body.removeChild(link);
     };
 
-    const renderKey = (keyId: string) => {
-        if (!keyId) return null;
+    const renderKeyAndActions = (keyId: string, actions: React.ReactNode) => {
+        if (!keyId && !actions) return null;
         return (
-            <div className="text-xs text-gray-500 font-mono mt-2 pt-2 border-t">
-                Key ID: {keyId}
+            <div className="text-xs text-gray-500 font-mono mt-2 pt-2 border-t flex items-center justify-between">
+                <span>{keyId ? `Key ID: ${keyId}`: ''}</span>
+                {actions}
             </div>
         )
     }
@@ -95,8 +96,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             <>
                 <div className="flex-grow flex flex-col justify-center items-center text-center">{content}</div>
                 <div className="flex-shrink-0 mt-2 flex flex-col items-center">
-                    {actions}
-                    {renderKey(keyId)}
+                    {renderKeyAndActions(keyId, actions)}
                 </div>
             </>
         )
@@ -152,8 +152,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             <>
                 <div className="flex-grow flex items-center justify-center">{content}</div>
                  <div className="flex-shrink-0 mt-2 flex flex-col items-center">
-                    {actions}
-                    {renderKey(keyId)}
+                    {renderKeyAndActions(keyId, actions)}
                 </div>
             </>
         )
@@ -167,11 +166,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                     <div className="flex flex-col items-start gap-2">
                         <p className="whitespace-pre-wrap">{response.content}</p>
                          <div className="w-full flex flex-col items-start mt-2">
-                             <Button variant="outline" size="sm" onClick={() => handleCopy(response.content, -1)}>
-                                <Copy className="h-4 w-4 mr-1" />
-                                {copiedText === `${response.content}--1` ? 'Copied!' : 'Copy'}
-                            </Button>
-                            {renderKey(response.keyId)}
+                            {renderKeyAndActions(response.keyId, (
+                                <Button variant="outline" size="sm" onClick={() => handleCopy(response.content, -1)}>
+                                    <Copy className="h-4 w-4 mr-1" />
+                                    {copiedText === `${response.content}--1` ? 'Copied!' : 'Copy'}
+                                </Button>
+                            ))}
                         </div>
                     </div>
                 );
@@ -180,11 +180,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                     <div className="flex flex-col items-center gap-2">
                         <Image src={`data:image/png;base64,${response.content}`} alt={response.alt} width={512} height={512} />
                         <div className="w-full flex flex-col items-start mt-2">
-                            <Button variant="outline" size="sm" onClick={() => handleDownload(response.content, `image_${response.keyId}.png`)}>
-                                <Download className="h-4 w-4 mr-1" />
-                                Download
-                            </Button>
-                            {renderKey(response.keyId)}
+                            {renderKeyAndActions(response.keyId, (
+                                <Button variant="outline" size="sm" onClick={() => handleDownload(response.content, `image_${response.keyId}.png`)}>
+                                    <Download className="h-4 w-4 mr-1" />
+                                    Download
+                                </Button>
+                            ))}
                         </div>
                     </div>
                 );
