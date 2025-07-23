@@ -67,9 +67,6 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
             while (true) {
                const { done, value } = await reader.read();
                if (done) {
-                   if(receivedResults === requests.length) {
-                       setStatus({ message: 'Image generation complete!', type: 'success' });
-                   }
                    break;
                }
 
@@ -80,17 +77,12 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                    if (line.trim().startsWith('data:')) {
                        const data = line.substring(5).trim();
                        if (data === '[DONE]') {
-                           if(receivedResults === requests.length) {
-                               setStatus({ message: 'Image generation complete!', type: 'success' });
-                           }
                            continue;
                        }
                        try {
                            const json = JSON.parse(data);
-                           const { index, status, content, reason, keyId, type } = json;
+                           const { index, status, content, reason, keyId } = json;
                            
-                           if (type !== 'image') continue;
-
                            if (boosterResults[index] === null) {
                                boosterResults[index] = { status: 'pending', content: '', keyId: '' };
                            }
@@ -100,16 +92,10 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
 
                            if (status === 'fulfilled') {
                                 boosterResults[index].content = content;
-                                if(boosterResults[index].status !== 'counted') {
-                                   receivedResults++;
-                                   boosterResults[index].status = 'counted'; 
-                                }
+                                receivedResults++;
                            } else if (status === 'rejected') {
                                boosterResults[index].content = reason.message || 'Unknown error';
-                               if(boosterResults[index].status !== 'counted') {
-                                   receivedResults++;
-                                   boosterResults[index].status = 'counted';
-                               }
+                               receivedResults++;
                            }
 
                            setResponse((prev: any) => ({
@@ -122,6 +108,10 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                            console.log('Skipping incomplete JSON chunk in image studio:', data);
                        }
                    }
+               }
+               if (receivedResults === requests.length) {
+                   setStatus({ message: 'Image generation complete!', type: 'success' });
+                   break; 
                }
             }
         } catch (error: any) {
