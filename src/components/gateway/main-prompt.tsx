@@ -80,7 +80,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                         break;
                     }
                     const chunk = decoder.decode(value, {stream: true});
-                    const lines = chunk.split('\\n');
+                    const lines = chunk.split('\n');
                     
                     for (const line of lines) {
                         if (line.trim().startsWith('data:')) {
@@ -95,7 +95,8 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                                     setResponse({ type: 'chat', content: fullResponse });
                                 }
                             } catch (e) {
-                                console.error('Error parsing stream data:', e);
+                                // This can happen with incomplete JSON objects, so we'll just log and continue
+                                console.log('Skipping incomplete JSON chunk:', data);
                             }
                         }
                     }
