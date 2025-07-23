@@ -74,19 +74,23 @@ export async function POST(req: NextRequest) {
             try {
                 const res = await makeRequest(r, key.apiKey);
                 const resText = await res.text();
+                
                 if (!res.ok) {
                     let errorBody;
                     try {
+                        // Attempt to parse as JSON, but fall back to raw text if it fails
                         errorBody = JSON.parse(resText);
                     } catch (e) {
-                        errorBody = { message: resText };
+                        errorBody = { error: { message: resText } };
                     }
-                    throw new Error(errorBody?.error?.message || JSON.stringify(errorBody) || `API request failed with status ${res.status}`);
+                    throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${res.status}`);
                 }
-                const value = JSON.parse(resText);
+                
+                const value = JSON.parse(resText); // We already have the text, so just parse it
                 return { status: 'fulfilled', value: { ...value, keyId: key.keyId } };
-            } catch (reason: any) {
-                 return { status: 'rejected', reason: { message: reason.message || 'Unknown error' }, keyId: key.keyId };
+
+            } catch (error: any) {
+                 return { status: 'rejected', reason: { message: error.message || 'Unknown error' }, keyId: key.keyId };
             }
         });
 
@@ -105,7 +109,13 @@ export async function POST(req: NextRequest) {
             const response = await makeRequest(request, key.apiKey);
 
             if (!response.ok) {
-                const errorBody = await response.json();
+                const errorText = await response.text();
+                let errorBody;
+                try {
+                    errorBody = JSON.parse(errorText);
+                } catch(e) {
+                    errorBody = { error: { message: errorText } };
+                }
                 throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${response.status}`);
             }
 
