@@ -72,8 +72,6 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let buffer = '';
-                let keyId = '';
-                let rateLimitInfo = null;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -83,35 +81,27 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                         break;
                     }
                     buffer += decoder.decode(value, {stream: true});
-                    const lines = buffer.split('\n\n');
+                    const lines = buffer.split('\n'); // Process line by line
                     buffer = lines.pop() || ''; // Keep the last, potentially incomplete line
                     
                     for (const line of lines) {
-                        if (line.trim().startsWith('event: metadata')) {
-                            const dataLine = lines.find(l => l.startsWith('data:'));
-                            if(dataLine) {
-                                const data = dataLine.substring(5).trim();
-                                try {
-                                    const json = JSON.parse(data);
-                                    keyId = json.keyId;
-                                    rateLimitInfo = json.rateLimitInfo;
-                                    setResponse((prev: any) => ({ ...prev, type: 'chat', keyId, rateLimitInfo }));
-                                } catch (e) {
-                                    console.log("Error parsing keyId from stream", data);
-                                }
-                            }
-                            continue;
-                        }
-                        if (line.trim().startsWith('data:')) {
+                       if (line.trim().startsWith('event: metadata')) {
+                            // This line contains the event type, the next line should have the data
+                        } else if (line.trim().startsWith('data:')) {
                             const data = line.substring(5).trim();
-                            if (data === '[DONE]') {
+                             if (data === '[DONE]') {
                                 break;
                             }
                             try {
                                 const json = JSON.parse(data);
-                                if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                                // Check if this is the metadata object
+                                if(json.keyId && json.rateLimitInfo) {
+                                     setResponse((prev: any) => ({ ...prev, type: 'chat', keyId: json.keyId, rateLimitInfo: json.rateLimitInfo }));
+                                }
+                                // Check if this is a content chunk
+                                else if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                     fullResponse += json.choices[0].delta.content;
-                                    setResponse((prev: any) => ({ ...prev, type: 'chat', content: fullResponse, keyId, rateLimitInfo }));
+                                    setResponse((prev: any) => ({ ...prev, content: fullResponse }));
                                 }
                             } catch (e) {
                                 // This can happen with incomplete JSON objects, so we'll just log and continue
