@@ -1,14 +1,39 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Message } from "./chat-layout"
 import { cn } from "@/lib/utils"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Bot, User } from "lucide-react"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
+import { Bot, User, Copy } from "lucide-react"
 
 type ChatMessagesProps = {
   messages: Message[]
   isLoading: boolean
+}
+
+function ChatMessageActions({ message, className }: { message: Message, className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (copied) return;
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  }
+
+  return (
+    <div className={cn("flex items-center justify-end", className)}>
+      <Button variant="ghost" size="icon" onClick={handleCopy} disabled={copied}>
+        <span className="sr-only">Copy message</span>
+        <Copy className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 }
 
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
@@ -30,7 +55,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
           <div
             key={message.id}
             className={cn(
-              "flex items-start gap-3",
+              "group flex items-start gap-3",
               message.role === "user" ? "justify-end" : "justify-start"
             )}
           >
@@ -57,6 +82,9 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                   <User />
                 </AvatarFallback>
               </Avatar>
+            )}
+            {message.role === "assistant" && !isLoading && (
+               <ChatMessageActions message={message} className="self-center opacity-0 group-hover:opacity-100 transition-opacity" />
             )}
           </div>
         ))}
