@@ -154,11 +154,11 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n")
+        const lines = buffer.split("\n\n")
         buffer = lines.pop() || ""
 
         for (const line of lines) {
-          if (line.trim().startsWith("data:")) {
+            if (line.trim().startsWith("data:")) {
             const data = line.substring(5).trim()
             if (data === "[DONE]") continue
             try {
@@ -201,7 +201,7 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
                 }
               }
             } catch (e) {
-              console.error("Error parsing stream chunk:", e)
+              console.error("Error parsing stream chunk:", e, "Data:", data)
             }
           }
         }
