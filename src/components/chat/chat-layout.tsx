@@ -247,8 +247,13 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
         if (done) break
 
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split("\n\n")
-        buffer = lines.pop() || ""
+        
+        let boundary = buffer.lastIndexOf('\n\n');
+        if (boundary === -1) continue;
+
+        const lines = buffer.substring(0, boundary).split('\n\n');
+        buffer = buffer.substring(boundary + 2);
+
 
         for (const line of lines) {
              if (line.startsWith('data:')) {
