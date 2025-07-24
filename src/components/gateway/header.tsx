@@ -18,13 +18,13 @@ export function GatewayHeader() {
         <div className="flex items-center gap-2">
           <Link href="/chat" passHref>
             <Button variant="outline">
-              <MessageCircle className="mr-2" />
+              <MessageCircle className="mr-2 h-4 w-4" />
               Chat
             </Button>
           </Link>
           <Link href="/gateway-tester" passHref>
             <Button variant="outline">
-              <FlaskConical className="mr-2" />
+              <FlaskConical className="mr-2 h-4 w-4" />
               Gateway Tester
             </Button>
           </Link>
