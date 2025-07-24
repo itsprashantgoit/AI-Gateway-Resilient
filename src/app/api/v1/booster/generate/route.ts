@@ -27,9 +27,56 @@ function getRateLimitInfo(headers: Headers) {
     };
 }
 
+async function makeRequestWithRetry(url: string, options: RequestInit, isStream: boolean = false, retryCount = 1) {
+    let response = await fetch(url, options);
+
+    if (response.status === 429 && retryCount > 0) {
+        const reset = response.headers.get('x-ratelimit-reset');
+        const waitTime = reset ? parseInt(reset, 10) * 1000 : 5000; // Wait 5s if header is missing
+        console.warn(`Rate limit exceeded. Retrying after ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        // Decrement retryCount and call again
+        return makeRequestWithRetry(url, options, isStream, retryCount - 1);
+    }
+    
+    if (!response.ok) {
+        let errorBody;
+        let errorMessage;
+        const resText = await response.text();
+        try {
+            errorBody = JSON.parse(resText);
+            errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || resText;
+        } catch (e) {
+            errorMessage = resText;
+        }
+
+        let specificError = `API Error (Status ${response.status})`;
+        switch (response.status) {
+           case 400: specificError = `400 - Invalid Request: ${errorMessage}`; break;
+           case 401: specificError = `401 - Authentication Error: Check your API Key.`; break;
+           case 402: specificError = `402 - Payment Required: Account spending limit reached.`; break;
+           case 403: specificError = `403 - Bad Request: Token limit likely exceeded.`; break;
+           case 404: specificError = `404 - Not Found: Invalid model name or API endpoint.`; break;
+           case 429: specificError = `429 - Rate Limit Exceeded: Please try again later.`; break;
+           case 500: specificError = `500 - Server Error: Issue on provider's side.`; break;
+           case 503: specificError = `503 - Engine Overloaded: High traffic on provider's side.`; break;
+           default: specificError += `: ${errorMessage}`; break;
+       }
+       throw new Error(specificError);
+    }
+
+    if (isStream) {
+        return response; // Return the raw response for streaming
+    }
+    
+    const value = await response.json();
+    const rateLimitInfo = getRateLimitInfo(response.headers);
+    return { value, rateLimitInfo };
+}
+
 
 async function makeRequest(request: any, key: any) {
-    const { model, prompt, type, steps } = request;
+    const { model, prompt, type, steps, stream } = request;
 
     const headers = {
         'Authorization': `Bearer ${key.apiKey}`,
@@ -41,20 +88,10 @@ async function makeRequest(request: any, key: any) {
 
     if (type === 'chat') {
         url = `${TOGETHER_API_BASE_URL}chat/completions`;
-        body = {
-            model: model,
-            messages: [{ role: 'user', content: prompt }],
-            stream: request.stream,
-        };
+        body = { model, messages: [{ role: 'user', content: prompt }], stream };
     } else if (type === 'image') {
         url = `${TOGETHER_API_BASE_URL}images/generations`;
-        body = {
-            model: model,
-            prompt: prompt,
-            n: 1,
-            steps: steps,
-            response_format: "b64_json"
-        };
+        body = { model, prompt, n: 1, steps, response_format: "b64_json" };
     } else {
         throw new Error(`Unsupported model type: ${type}`);
     }
@@ -64,39 +101,9 @@ async function makeRequest(request: any, key: any) {
         headers,
         body: JSON.stringify(body),
     };
-
-    const res = await fetch(url, fetchOptions);
-
-    if (!res.ok) {
-        let errorBody;
-        let errorMessage;
-        const resText = await res.text();
-        try {
-            // Try to parse as JSON, but fallback to raw text if it's not
-            errorBody = JSON.parse(resText);
-            errorMessage = errorBody?.error?.message || JSON.stringify(errorBody.error) || resText;
-        } catch (e) {
-            errorMessage = resText; // The response was not JSON (e.g., HTML error page)
-        }
-
-        let specificError = `API Error (Status ${res.status})`;
-         switch (res.status) {
-            case 400: specificError = `400 - Invalid Request: ${errorMessage}`; break;
-            case 401: specificError = `401 - Authentication Error: Check your API Key.`; break;
-            case 402: specificError = `402 - Payment Required: Account spending limit reached.`; break;
-            case 403: specificError = `403 - Bad Request: Token limit likely exceeded.`; break;
-            case 404: specificError = `404 - Not Found: Invalid model name or API endpoint.`; break;
-            case 429: specificError = `429 - Rate Limit Exceeded: Too many requests.`; break;
-            case 500: specificError = `500 - Server Error: Issue on provider's side.`; break;
-            case 503: specificError = `503 - Engine Overloaded: High traffic on provider's side.`; break;
-            default: specificError += `: ${errorMessage}`; break;
-        }
-        // This throw will be caught by the Promise.allSettled logic
-        throw new Error(specificError);
-    }
     
-    const value = await res.json();
-    const rateLimitInfo = getRateLimitInfo(res.headers);
+    // For non-streaming, we can wrap the retry logic here
+    const { value, rateLimitInfo } = await makeRequestWithRetry(url, fetchOptions, false);
     return { ...value, keyId: key.keyId, rateLimitInfo };
 }
 
@@ -108,29 +115,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Invalid 'requests' field. Expected an array." }, { status: 400 });
     }
     
-    // Non-streaming path
     if (!streamAll) {
        const promises = requests.map(async (r: any) => {
          try {
            const key = getNextKey();
            const value = await makeRequest(r, key);
-           // Add keyId to the fulfilled value for the frontend
            return { status: 'fulfilled', value: { ...value, keyId: key.keyId }};
          } catch (error: any) {
-           // The error from makeRequest is caught here
-           const keyId = 'unknown'; // In case getNextKey() also fails
+           const keyId = 'unknown'; 
            return { status: 'rejected', reason: { message: error.message || 'Unknown error', keyId } };
          }
        });
 
-       // Use Promise.allSettled to ensure we never crash the server
        const results = await Promise.allSettled(promises);
 
        const finalResults = results.map(promiseResult => {
             if (promiseResult.status === 'fulfilled') {
                 return promiseResult.value; 
             } else {
-                // The promise was rejected, return the reason
                 return { 
                     status: 'rejected', 
                     reason: promiseResult.reason.reason || { message: 'An unknown error occurred during promise settlement.' }
@@ -140,7 +142,6 @@ export async function POST(req: NextRequest) {
        return NextResponse.json(finalResults);
     }
     
-    // Streaming path for Booster and Image Studio
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
@@ -150,38 +151,39 @@ export async function POST(req: NextRequest) {
           try {
             key = getNextKey();
 
-            if (request.type === 'chat') {
-                if (!request.stream) {
-                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: 'Streaming is only supported for chat models with stream enabled.' }, keyId: key.keyId })}\n\n`));
-                     return;
-                }
-                const fetchOptions: RequestInit = {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${key.apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
-                     body: JSON.stringify({
-                        model: request.model,
-                        messages: [{ role: 'user', content: request.prompt }],
-                        stream: true,
-                    }),
-                    // @ts-expect-error
-                    duplex: 'half',
-                };
-                const response = await fetch(`${TOGETHER_API_BASE_URL}chat/completions`, fetchOptions);
+            const headers = {
+                'Authorization': `Bearer ${key.apiKey}`,
+                'Content-Type': 'application/json'
+            };
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    let errorBody;
-                    try {
-                        errorBody = JSON.parse(errorText);
-                    } catch(e) {
-                        errorBody = { error: { message: errorText } };
-                    }
-                    throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${response.status}`);
-                }
+            let url, body;
+            const isChatStream = request.type === 'chat' && request.stream;
 
+            if (isChatStream) {
+                url = `${TOGETHER_API_BASE_URL}chat/completions`;
+                body = { model: request.model, messages: [{ role: 'user', content: request.prompt }], stream: true };
+            } else if (request.type === 'image') {
+                url = `${TOGETHER_API_BASE_URL}images/generations`;
+                body = { model: request.model, prompt: request.prompt, n: 1, steps: request.steps, response_format: "b64_json" };
+            } else if (request.type === 'chat' && !request.stream) {
+                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: 'Streaming is only supported for chat models with stream enabled.' }, keyId: key.keyId })}\n\n`));
+                 return;
+            } else {
+                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, status: 'rejected', reason: { message: `Unsupported request type: ${request.type}`}, keyId: key.keyId })}\n\n`));
+                 return;
+            }
+
+            const fetchOptions: RequestInit = {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+                 // @ts-expect-error
+                duplex: 'half',
+            };
+
+            const response = await makeRequestWithRetry(url, fetchOptions, isChatStream);
+
+            if (isChatStream) {
                 if (response.body) {
                   const rateLimitInfo = getRateLimitInfo(response.headers);
                   controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'metadata', keyId: key.keyId, rateLimitInfo })}\n\n`));
@@ -225,9 +227,9 @@ export async function POST(req: NextRequest) {
                       }
                   }
                 }
-            } else if (request.type === 'image') {
-              const data = await makeRequest(request, key);
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'image', status: 'fulfilled', content: data, keyId: key.keyId, rateLimitInfo: data.rateLimitInfo })}\n\n`));
+            } else { // Image or non-streamed chat
+              const { value, rateLimitInfo } = response;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'image', status: 'fulfilled', content: value, keyId: key.keyId, rateLimitInfo: rateLimitInfo })}\n\n`));
             }
 
           } catch (e: any) {

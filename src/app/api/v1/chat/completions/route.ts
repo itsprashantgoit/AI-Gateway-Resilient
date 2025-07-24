@@ -26,6 +26,44 @@ function getRateLimitInfo(headers: Headers) {
     };
 }
 
+async function makeRequestWithRetry(url: string, options: RequestInit, isStream: boolean = false, retryCount = 1) {
+    let response = await fetch(url, options);
+
+    if (response.status === 429 && retryCount > 0) {
+        const resetHeader = response.headers.get('x-ratelimit-reset');
+        // The reset value can be in seconds or milliseconds, we'll assume seconds if it's a small number
+        let waitTime = 5000; // Default wait time
+        if (resetHeader) {
+            let resetValue = parseInt(resetHeader, 10);
+            // Check if the value is likely seconds (e.g., < 1000) and convert to ms
+            if (resetValue < 1000) {
+                 waitTime = resetValue * 1000;
+            } else {
+                 waitTime = resetValue; // Assume it's already ms
+            }
+        }
+        console.warn(`Rate limit exceeded. Retrying after ${waitTime}ms...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        return makeRequestWithRetry(url, options, isStream, retryCount - 1);
+    }
+    
+    if (!response.ok) {
+        const errorBody = await response.text();
+        let parsedError;
+        try {
+            parsedError = JSON.parse(errorBody);
+        } catch (e) {
+            parsedError = { error: { message: `Upstream API error: ${errorBody}` } };
+        }
+        // Re-throw with status to be handled by the main try-catch
+        const error = new Error(parsedError.error.message || 'Unknown upstream error');
+        // @ts-ignore
+        error.status = response.status;
+        throw error;
+    }
+    
+    return response;
+}
 
 export async function POST(req: Request) {
   try {
@@ -43,26 +81,16 @@ export async function POST(req: Request) {
       messages: messages,
       stream: stream,
     });
-
-    const response = await fetch(TOGETHER_API_URL, {
+    
+    const fetchOptions: RequestInit = {
       method: 'POST',
       headers,
       body,
       // @ts-expect-error
       duplex: 'half',
-    });
+    };
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        console.error("Upstream API Error:", errorBody);
-        // Ensure we return a JSON response even for upstream errors
-        try {
-            const parsedError = JSON.parse(errorBody);
-            return NextResponse.json(parsedError, { status: response.status });
-        } catch (e) {
-            return NextResponse.json({ error: { message: `Upstream API error: ${errorBody}` } }, { status: response.status });
-        }
-    }
+    const response = await makeRequestWithRetry(TOGETHER_API_URL, fetchOptions, stream);
 
     if (stream && response.body) {
       const responseStream = new ReadableStream({
@@ -77,7 +105,6 @@ export async function POST(req: Request) {
             while (true) {
               const { done, value } = await reader.read();
               if (done) break;
-              // Pass through the stream from together.ai
               const chunk = decoder.decode(value, { stream: true });
               const lines = chunk.split('\n');
               for(const line of lines) {
@@ -112,6 +139,8 @@ export async function POST(req: Request) {
 
   } catch (error: any) {
     console.error('Proxy Error:', error);
-    return NextResponse.json({ error: { message: error.message } }, { status: 500 });
+    // @ts-ignore
+    const status = error.status || 500;
+    return NextResponse.json({ error: { message: error.message } }, { status });
   }
 }
