@@ -56,7 +56,7 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type your message here..."
+          placeholder="Type your message or use /imagine to generate an image..."
           className="flex-1 resize-none border-0 shadow-none focus-visible:ring-0"
           rows={1}
           disabled={isLoading}
@@ -67,7 +67,7 @@ export function ChatInput({ onSend, isLoading, onStop }: ChatInputProps) {
         </Button>
       </div>
       <p className="text-xs text-center text-muted-foreground p-2">
-        Press Shift+Enter for a new line.
+        Type `/imagine &lt;prompt&gt;` to generate an image. Shift+Enter for a new line.
       </p>
     </div>
   )

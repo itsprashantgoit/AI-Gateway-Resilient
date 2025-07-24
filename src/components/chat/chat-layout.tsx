@@ -6,6 +6,8 @@ import { ChatMessages } from "./chat-messages"
 import { ChatInput } from "./chat-input"
 import { ChatHistory } from "./chat-history"
 import { Model, models } from "../gateway/models"
+import { generateImageAction } from "@/app/actions";
+import type { GenerateImageInput } from "@/ai/schemas/generate-image-schemas";
 import {
   Select,
   SelectContent,
@@ -22,6 +24,7 @@ export interface Message {
   id: string
   role: "user" | "assistant"
   content: string
+  imageUrl?: string | null
 }
 
 export interface ChatSession {
@@ -94,6 +97,78 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
     }
   }
 
+  const handleImageGeneration = async (prompt: string, userMessage: Message) => {
+    if (!activeChatId) return;
+
+    setHistory((prev) =>
+      prev.map((chat) =>
+        chat.id === activeChatId
+          ? {
+              ...chat,
+              messages: [...chat.messages, userMessage],
+            }
+          : chat
+      )
+    );
+    setIsLoading(true);
+
+    const loadingMessage: Message = {
+      id: uuidv4(),
+      role: "assistant",
+      content: `Generating image for: "${prompt}"...`,
+    };
+
+    setHistory((prev) =>
+      prev.map((chat) =>
+        chat.id === activeChatId
+          ? {
+              ...chat,
+              messages: [...chat.messages, loadingMessage],
+            }
+          : chat
+      )
+    );
+
+    const { result, error } = await generateImageAction({ prompt });
+    setIsLoading(false);
+
+    if (error) {
+      const errorMessage: Message = {
+        id: uuidv4(),
+        role: "assistant",
+        content: `Image generation failed: ${error}`,
+      };
+      setHistory((prev) =>
+        prev.map((chat) =>
+          chat.id === activeChatId
+            ? {
+                ...chat,
+                messages: chat.messages.map(m => m.id === loadingMessage.id ? errorMessage : m)
+              }
+            : chat
+        )
+      );
+    } else if (result) {
+      const imageMessage: Message = {
+        id: uuidv4(),
+        role: "assistant",
+        content: `Generated image for: "${prompt}"`,
+        imageUrl: result.imageUrl,
+      };
+      setHistory((prev) =>
+        prev.map((chat) =>
+          chat.id === activeChatId
+            ? {
+                ...chat,
+                messages: chat.messages.map(m => m.id === loadingMessage.id ? imageMessage : m)
+              }
+            : chat
+        )
+      );
+    }
+  };
+
+
   const handleSend = async (messageContent: string) => {
     if (!activeChat) return
 
@@ -102,6 +177,14 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
       role: "user",
       content: messageContent,
     }
+
+    // Handle image generation command
+    if (messageContent.startsWith("/imagine ")) {
+      const prompt = messageContent.substring(8).trim();
+      handleImageGeneration(prompt, newMessage);
+      return;
+    }
+
 
     const updatedMessages = [...activeChat.messages, newMessage]
 
@@ -131,7 +214,7 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: activeChat.modelId,
-          messages: updatedMessages,
+          messages: updatedMessages.map(({id, role, content}) => ({role, content})),
           stream: true,
         }),
         signal: abortController.signal,
@@ -158,52 +241,54 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
         buffer = lines.pop() || ""
 
         for (const line of lines) {
-            if (line.trim().startsWith("data:")) {
-            const data = line.substring(5).trim()
-            if (data === "[DONE]") continue
-            try {
-              const json = JSON.parse(data)
-              if (json.choices && json.choices[0].delta?.content) {
-                assistantContent += json.choices[0].delta.content
-
-                if (firstChunk) {
-                  const assistantMessage: Message = {
-                    id: assistantMessageId,
-                    role: "assistant",
-                    content: assistantContent,
-                  }
-                  setHistory((prev) =>
-                    prev.map((chat) =>
-                      chat.id === activeChatId
-                        ? {
-                            ...chat,
-                            messages: [...updatedMessages, assistantMessage],
-                          }
-                        : chat
-                    )
-                  )
-                  firstChunk = false
-                } else {
-                  setHistory((prev) =>
-                    prev.map((chat) =>
-                      chat.id === activeChatId
-                        ? {
-                            ...chat,
-                            messages: chat.messages.map((m) =>
-                              m.id === assistantMessageId
-                                ? { ...m, content: assistantContent }
-                                : m
-                            ),
-                          }
-                        : chat
-                    )
-                  )
+             if (line.startsWith('data:')) {
+                const data = line.substring(5).trim();
+                if (data === '[DONE]') {
+                    break;
                 }
-              }
-            } catch (e) {
-              console.error("Error parsing stream chunk:", e, "Data:", data)
+                try {
+                    const json = JSON.parse(data);
+                    if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
+                        assistantContent += json.choices[0].delta.content
+
+                        if (firstChunk) {
+                          const assistantMessage: Message = {
+                            id: assistantMessageId,
+                            role: "assistant",
+                            content: assistantContent,
+                          }
+                          setHistory((prev) =>
+                            prev.map((chat) =>
+                              chat.id === activeChatId
+                                ? {
+                                    ...chat,
+                                    messages: [...updatedMessages, assistantMessage],
+                                  }
+                                : chat
+                            )
+                          )
+                          firstChunk = false
+                        } else {
+                          setHistory((prev) =>
+                            prev.map((chat) =>
+                              chat.id === activeChatId
+                                ? {
+                                    ...chat,
+                                    messages: chat.messages.map((m) =>
+                                      m.id === assistantMessageId
+                                        ? { ...m, content: assistantContent }
+                                        : m
+                                    ),
+                                  }
+                                : chat
+                            )
+                          )
+                        }
+                    }
+                } catch (e) {
+                    console.error("Error parsing stream chunk:", e, "Data:", data)
+                }
             }
-          }
         }
       }
     } catch (error: any) {
