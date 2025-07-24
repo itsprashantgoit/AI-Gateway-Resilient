@@ -119,37 +119,33 @@ export function Booster({ models, setStatus, setResponse, setIsLoading, isLoadin
                             }
                             try {
                                 const json = JSON.parse(data);
-                                const { index, status, content, reason, keyId } = json;
+                                const { index, type, status, content, reason, keyId, rateLimitInfo } = json;
                                 
                                 setResponse((prev: any) => {
                                     if (!prev || !prev.results) return prev;
                                     const newResults = [...prev.results];
 
                                     if (newResults[index] === null) {
-                                        newResults[index] = { status: 'pending', content: '', keyId: '' };
+                                        newResults[index] = { status: 'pending', content: '', keyId: '', rateLimitInfo: null };
                                     }
-
-                                    if (keyId) {
-                                      newResults[index].keyId = keyId;
-                                    }
-
-                                    switch(status) {
-                                        case 'streaming':
-                                            newResults[index].status = 'streaming';
-                                            newResults[index].content += content;
-                                            break;
-                                        case 'fulfilled':
-                                            newResults[index].status = 'fulfilled'; // Correctly set status
-                                            if (json.type === 'chat' && content && content.choices) {
-                                                newResults[index].content = content.choices[0].message.content;
-                                            } else {
-                                                newResults[index].content = content; 
-                                            }
-                                            break;
-                                        case 'rejected':
-                                            newResults[index].status = 'rejected';
-                                            newResults[index].content = reason.message || 'Unknown error';
-                                            break;
+                                    
+                                    if (type === 'metadata') {
+                                        newResults[index].keyId = keyId;
+                                        newResults[index].rateLimitInfo = rateLimitInfo;
+                                    } else if (status === 'streaming') {
+                                        newResults[index].status = 'streaming';
+                                        newResults[index].content += content;
+                                    } else if (status === 'fulfilled') {
+                                        newResults[index].status = 'fulfilled';
+                                        if (json.type === 'chat') {
+                                            newResults[index].content = content.choices[0].message.content;
+                                        } else {
+                                            newResults[index].content = content; 
+                                        }
+                                    } else if (status === 'rejected') {
+                                        newResults[index].status = 'rejected';
+                                        newResults[index].content = reason.message || 'Unknown error';
+                                        if(keyId) newResults[index].keyId = keyId;
                                     }
 
                                     return { ...prev, results: newResults };

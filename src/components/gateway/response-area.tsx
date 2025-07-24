@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Copy, Download } from 'lucide-react';
+import { Copy, Download, Info } from 'lucide-react';
 
 interface ResponseAreaProps {
     response: any;
@@ -35,12 +35,28 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         document.body.removeChild(link);
     };
 
-    const renderKeyAndActions = (keyId: string, actions: React.ReactNode) => {
-        if (!keyId && !actions) return null;
+    const renderResponseMetadata = (keyId: string, rateLimitInfo: any, actions: React.ReactNode) => {
+        if (!keyId && !actions && !rateLimitInfo) return null;
         return (
-            <div className="text-xs text-gray-500 font-mono mt-2 pt-2 border-t flex items-center justify-between">
-                <span>{keyId ? `Key ID: ${keyId}`: ''}</span>
-                {actions}
+            <div className="text-xs text-gray-500 mt-2 pt-2 border-t w-full">
+                <div className="flex items-center justify-between font-mono">
+                    <span>{keyId ? `Key ID: ${keyId}`: ''}</span>
+                    <div className="flex items-center gap-2">
+                     {actions}
+                    </div>
+                </div>
+                 {rateLimitInfo && (
+                    <Card className="mt-2 p-2 bg-gray-50 text-gray-600">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                             <div className="font-semibold col-span-2 flex items-center gap-1"><Info size={14}/> Rate Limit Info</div>
+                             <div>Req Limit: {rateLimitInfo.ratelimitLimit ?? 'N/A'}</div>
+                             <div>Req Remain: {rateLimitInfo.ratelimitRemaining ?? 'N/A'}</div>
+                             <div>Token Limit: {rateLimitInfo.tokenlimitLimit ?? 'N/A'}</div>
+                             <div>Token Remain: {rateLimitInfo.tokenlimitRemaining ?? 'N/A'}</div>
+                             <div className="col-span-2">Reset: {rateLimitInfo.ratelimitReset ?? 'N/A'}</div>
+                        </div>
+                    </Card>
+                )}
             </div>
         )
     }
@@ -53,10 +69,12 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         let content;
         let actions;
         let keyId;
+        let rateLimitInfo;
 
         if (result.status === 'fulfilled') {
             const value = result.value;
             keyId = value.keyId;
+            rateLimitInfo = value.rateLimitInfo;
 
             if (request.type === 'chat') {
                 const chatContent = value.choices[0].message.content;
@@ -95,8 +113,8 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         return (
             <>
                 <div className="flex-grow flex flex-col justify-center items-center text-center">{content}</div>
-                <div className="flex-shrink-0 mt-2 flex flex-col items-center">
-                    {renderKeyAndActions(keyId, actions)}
+                <div className="flex-shrink-0 mt-2 flex flex-col items-center w-full">
+                    {renderResponseMetadata(keyId, rateLimitInfo, actions)}
                 </div>
             </>
         )
@@ -110,13 +128,14 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         let content;
         let actions;
         let keyId = result.keyId;
+        let rateLimitInfo = result.rateLimitInfo;
 
         if (result.status === 'rejected') {
             content = <p className="text-red-500">Error: {result.content || 'An unknown error occurred.'}</p>;
         } else if (request.type === 'chat') {
             const chatContent = result.content;
             content = <p className="text-left whitespace-pre-wrap">{chatContent}</p>;
-            if (result.status !== 'streaming') {
+            if (result.status === 'fulfilled') {
                  actions = (
                     <Button variant="ghost" size="sm" onClick={() => handleCopy(chatContent, index)}>
                         <Copy className="h-4 w-4 mr-1" />
@@ -129,6 +148,9 @@ export function ResponseArea({ response }: ResponseAreaProps) {
             
             if (result.content?.keyId) {
                 keyId = result.content.keyId;
+            }
+             if (result.content?.rateLimitInfo) {
+                rateLimitInfo = result.content.rateLimitInfo;
             }
 
             if (imageContent) {
@@ -151,8 +173,8 @@ export function ResponseArea({ response }: ResponseAreaProps) {
         return (
             <>
                 <div className="flex-grow flex items-center justify-center">{content}</div>
-                 <div className="flex-shrink-0 mt-2 flex flex-col items-center">
-                    {renderKeyAndActions(keyId, actions)}
+                 <div className="flex-shrink-0 mt-2 flex flex-col items-center w-full">
+                    {renderResponseMetadata(keyId, rateLimitInfo, actions)}
                 </div>
             </>
         )
@@ -166,7 +188,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                     <div className="flex flex-col items-start gap-2">
                         <p className="whitespace-pre-wrap">{response.content}</p>
                          <div className="w-full flex flex-col items-start mt-2">
-                            {renderKeyAndActions(response.keyId, (
+                            {renderResponseMetadata(response.keyId, response.rateLimitInfo, (
                                 <Button variant="outline" size="sm" onClick={() => handleCopy(response.content, -1)}>
                                     <Copy className="h-4 w-4 mr-1" />
                                     {copiedText === `${response.content}--1` ? 'Copied!' : 'Copy'}
@@ -180,7 +202,7 @@ export function ResponseArea({ response }: ResponseAreaProps) {
                     <div className="flex flex-col items-center gap-2">
                         <Image src={`data:image/png;base64,${response.content}`} alt={response.alt} width={512} height={512} />
                         <div className="w-full flex flex-col items-start mt-2">
-                            {renderKeyAndActions(response.keyId, (
+                             {renderResponseMetadata(response.keyId, response.rateLimitInfo, (
                                 <Button variant="outline" size="sm" onClick={() => handleDownload(response.content, `image_${response.keyId}.png`)}>
                                     <Download className="h-4 w-4 mr-1" />
                                     Download

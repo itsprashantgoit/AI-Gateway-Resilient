@@ -17,6 +17,17 @@ function getNextKey() {
   return key;
 }
 
+function getRateLimitInfo(headers: Headers) {
+    return {
+        ratelimitLimit: headers.get('x-ratelimit-limit'),
+        ratelimitRemaining: headers.get('x-ratelimit-remaining'),
+        ratelimitReset: headers.get('x-ratelimit-reset'),
+        tokenlimitLimit: headers.get('x-tokenlimit-limit'),
+        tokenlimitRemaining: headers.get('x-tokenlimit-remaining'),
+    };
+}
+
+
 async function makeRequest(request: any, key: any) {
     const { model, prompt, type, steps } = request;
 
@@ -85,7 +96,8 @@ async function makeRequest(request: any, key: any) {
     }
     
     const value = await res.json();
-    return { ...value, keyId: key.keyId };
+    const rateLimitInfo = getRateLimitInfo(res.headers);
+    return { ...value, keyId: key.keyId, rateLimitInfo };
 }
 
 export async function POST(req: NextRequest) {
@@ -169,8 +181,11 @@ export async function POST(req: NextRequest) {
                     }
                     throw new Error(errorBody?.error?.message || JSON.stringify(errorBody.error) || `API request failed with status ${response.status}`);
                 }
-                
+
                 if (response.body) {
+                  const rateLimitInfo = getRateLimitInfo(response.headers);
+                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'metadata', keyId: key.keyId, rateLimitInfo })}\n\n`));
+
                   const reader = response.body.getReader();
                   const decoder = new TextDecoder();
                   let fullResponse = "";
@@ -181,7 +196,7 @@ export async function POST(req: NextRequest) {
                       if (done) {
                           if (finalData) {
                               finalData.choices[0].message.content = fullResponse;
-                               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData, keyId: key.keyId })}\n\n`));
+                               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'fulfilled', content: finalData })}\n\n`));
                           }
                           break;
                       };
@@ -201,7 +216,7 @@ export async function POST(req: NextRequest) {
                                   if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                      const contentChunk = json.choices[0].delta.content;
                                      fullResponse += contentChunk;
-                                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk, keyId: key.keyId })}\n\n`));
+                                     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'chat', status: 'streaming', content: contentChunk })}\n\n`));
                                   }
                               } catch (e) {
                                   // ignore incomplete json
@@ -212,7 +227,7 @@ export async function POST(req: NextRequest) {
                 }
             } else if (request.type === 'image') {
               const data = await makeRequest(request, key);
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'image', status: 'fulfilled', content: data, keyId: key.keyId })}\n\n`));
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ index, type: 'image', status: 'fulfilled', content: data, keyId: key.keyId, rateLimitInfo: data.rateLimitInfo })}\n\n`));
             }
 
           } catch (e: any) {

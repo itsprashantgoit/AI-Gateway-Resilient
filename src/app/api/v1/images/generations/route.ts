@@ -17,6 +17,16 @@ function getNextKey() {
   return key;
 }
 
+function getRateLimitInfo(headers: Headers) {
+    return {
+        ratelimitLimit: headers.get('x-ratelimit-limit'),
+        ratelimitRemaining: headers.get('x-ratelimit-remaining'),
+        ratelimitReset: headers.get('x-ratelimit-reset'),
+        tokenlimitLimit: headers.get('x-tokenlimit-limit'),
+        tokenlimitRemaining: headers.get('x-tokenlimit-remaining'),
+    };
+}
+
 export async function POST(req: Request) {
   try {
     const incomingRequest = await req.json();
@@ -51,7 +61,8 @@ export async function POST(req: Request) {
         return NextResponse.json(data, { status: response.status });
     }
     
-    return NextResponse.json({ ...data, keyId: keyInfo.keyId });
+    const rateLimitInfo = getRateLimitInfo(response.headers);
+    return NextResponse.json({ ...data, keyId: keyInfo.keyId, rateLimitInfo });
 
   } catch (error: any) {
     console.error('Proxy Error:', error);

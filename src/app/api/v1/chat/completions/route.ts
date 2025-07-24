@@ -16,6 +16,17 @@ function getNextKey() {
   return keyInfo;
 }
 
+function getRateLimitInfo(headers: Headers) {
+    return {
+        ratelimitLimit: headers.get('x-ratelimit-limit'),
+        ratelimitRemaining: headers.get('x-ratelimit-remaining'),
+        ratelimitReset: headers.get('x-ratelimit-reset'),
+        tokenlimitLimit: headers.get('x-tokenlimit-limit'),
+        tokenlimitRemaining: headers.get('x-tokenlimit-remaining'),
+    };
+}
+
+
 export async function POST(req: Request) {
   try {
     const incomingRequest = await req.json();
@@ -56,8 +67,9 @@ export async function POST(req: Request) {
     if (stream && response.body) {
       const responseStream = new ReadableStream({
         async start(controller) {
-          const keyIdChunk = `event: key\ndata: ${JSON.stringify({keyId: keyInfo.keyId})}\n\n`;
-          controller.enqueue(new TextEncoder().encode(keyIdChunk));
+          const rateLimitInfo = getRateLimitInfo(response.headers);
+          const metadataChunk = `event: metadata\ndata: ${JSON.stringify({keyId: keyInfo.keyId, rateLimitInfo})}\n\n`;
+          controller.enqueue(new TextEncoder().encode(metadataChunk));
           
           const reader = response.body!.getReader();
           const decoder = new TextDecoder();
@@ -94,7 +106,9 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json();
-    return NextResponse.json({...data, keyId: keyInfo.keyId});
+    const rateLimitInfo = getRateLimitInfo(response.headers);
+
+    return NextResponse.json({...data, keyId: keyInfo.keyId, rateLimitInfo});
 
   } catch (error: any) {
     console.error('Proxy Error:', error);

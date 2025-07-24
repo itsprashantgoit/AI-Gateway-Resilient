@@ -73,6 +73,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 const decoder = new TextDecoder();
                 let buffer = '';
                 let keyId = '';
+                let rateLimitInfo = null;
 
                 while (true) {
                     const { done, value } = await reader.read();
@@ -82,18 +83,19 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                         break;
                     }
                     buffer += decoder.decode(value, {stream: true});
-                    const lines = buffer.split('\n');
+                    const lines = buffer.split('\n\n');
                     buffer = lines.pop() || ''; // Keep the last, potentially incomplete line
                     
                     for (const line of lines) {
-                        if (line.trim().startsWith('event: key')) {
+                        if (line.trim().startsWith('event: metadata')) {
                             const dataLine = lines.find(l => l.startsWith('data:'));
                             if(dataLine) {
                                 const data = dataLine.substring(5).trim();
                                 try {
                                     const json = JSON.parse(data);
                                     keyId = json.keyId;
-                                    setResponse((prev: any) => ({ ...prev, type: 'chat', keyId: json.keyId }));
+                                    rateLimitInfo = json.rateLimitInfo;
+                                    setResponse((prev: any) => ({ ...prev, type: 'chat', keyId, rateLimitInfo }));
                                 } catch (e) {
                                     console.log("Error parsing keyId from stream", data);
                                 }
@@ -109,7 +111,7 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                                 const json = JSON.parse(data);
                                 if (json.choices && json.choices[0].delta && json.choices[0].delta.content) {
                                     fullResponse += json.choices[0].delta.content;
-                                    setResponse((prev: any) => ({ ...prev, type: 'chat', content: fullResponse, keyId }));
+                                    setResponse((prev: any) => ({ ...prev, type: 'chat', content: fullResponse, keyId, rateLimitInfo }));
                                 }
                             } catch (e) {
                                 // This can happen with incomplete JSON objects, so we'll just log and continue
@@ -131,11 +133,11 @@ export function MainPrompt({ models, setStatus, setResponse, setIsLoading, isLoa
                 setStatus({ message: `Success!`, type: 'success' });
 
                 if (selectedModel.type === 'chat') {
-                    setResponse({ type: 'chat', content: data.choices[0].message.content, keyId: data.keyId });
+                    setResponse({ type: 'chat', content: data.choices[0].message.content, keyId: data.keyId, rateLimitInfo: data.rateLimitInfo });
                 } else { // image
                     const b64_json = data?.data?.[0]?.b64_json;
                     if (b64_json) {
-                       setResponse({ type: 'image', content: b64_json, alt: prompt, keyId: data.keyId });
+                       setResponse({ type: 'image', content: b64_json, alt: prompt, keyId: data.keyId, rateLimitInfo: data.rateLimitInfo });
                     } else {
                         console.error("Full API response for debugging:", data);
                         throw new Error("Image data (b64_json) not found in the API response.");

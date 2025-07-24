@@ -83,15 +83,17 @@ export function ImageStudio({ models, setStatus, setResponse, setIsLoading, isLo
                          }
                          try {
                              const json = JSON.parse(data);
-                             const { index, status, content, reason, keyId } = json;
+                             const { index, status, content, reason, keyId, rateLimitInfo } = json;
                              
                              if (index !== undefined && index < requests.length) {
                                 setResponse((prev: any) => {
+                                  if (!prev || !prev.results) return prev;
                                   const newResults = [...prev.results];
                                   newResults[index] = {
                                       status: status,
                                       content: status === 'fulfilled' ? content : (reason?.message || 'Unknown error'),
                                       keyId: keyId,
+                                      rateLimitInfo: rateLimitInfo,
                                   };
                                   return { ...prev, results: newResults };
                                 });
