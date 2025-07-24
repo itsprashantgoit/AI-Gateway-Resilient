@@ -1,4 +1,4 @@
-import { BrainCircuit, FlaskConical } from 'lucide-react';
+import { BrainCircuit, FlaskConical, MessageCircle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
@@ -15,12 +15,20 @@ export function GatewayHeader() {
             <p className="text-muted-foreground mt-1">View provider status and find the optimal API for your query.</p>
           </div>
         </div>
-        <Link href="/gateway-tester" passHref>
-          <Button variant="outline">
-            <FlaskConical className="mr-2" />
-            Gateway Tester
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link href="/chat" passHref>
+            <Button variant="outline">
+              <MessageCircle className="mr-2" />
+              Chat
+            </Button>
+          </Link>
+          <Link href="/gateway-tester" passHref>
+            <Button variant="outline">
+              <FlaskConical className="mr-2" />
+              Gateway Tester
+            </Button>
+          </Link>
+        </div>
       </div>
     </header>
   );
