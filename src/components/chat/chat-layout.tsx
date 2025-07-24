@@ -13,9 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Separator } from "../ui/separator"
-import { Button } from "../ui/button"
+import { Separator } from "@/components/ui/separator"
+import { Button } from "@/components/ui/button"
 import { Plus, Trash2 } from "lucide-react"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 export interface Message {
   id: string
