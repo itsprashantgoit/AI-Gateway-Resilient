@@ -77,6 +77,16 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
     setHistory([])
     setActiveChatId(null)
   }
+  
+  const deleteChat = (idToDelete: string) => {
+    setHistory(prev => {
+        const newHistory = prev.filter(chat => chat.id !== idToDelete);
+        if (activeChatId === idToDelete) {
+            setActiveChatId(newHistory.length > 0 ? newHistory[0].id : null);
+        }
+        return newHistory;
+    });
+  }
 
   useEffect(() => {
     if (activeChatId === null && history.length > 0) {
@@ -347,14 +357,26 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
           <ScrollArea className="flex-1">
             <div className="flex flex-col gap-1 p-2">
               {history.map((chat) => (
-                <Button
-                  key={chat.id}
-                  variant={activeChatId === chat.id ? "secondary" : "ghost"}
-                  className="w-full justify-start truncate"
-                  onClick={() => setActiveChatId(chat.id)}
-                >
-                  {chat.name}
-                </Button>
+                 <div key={chat.id} className="group flex items-center gap-1">
+                    <Button
+                      variant={activeChatId === chat.id ? "secondary" : "ghost"}
+                      className="w-full justify-start truncate"
+                      onClick={() => setActiveChatId(chat.id)}
+                    >
+                      {chat.name}
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            deleteChat(chat.id)
+                        }}
+                        >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
               ))}
             </div>
           </ScrollArea>
@@ -368,6 +390,7 @@ export function ChatLayout({ defaultModel, models: chatModels }: ChatLayoutProps
               setActiveChatId={setActiveChatId}
               createNewChat={createNewChat}
               clearHistory={clearHistory}
+              deleteChat={deleteChat}
             />
           </div>
           <h2 className="text-xl font-semibold truncate">{activeChat?.name ?? "Chat"}</h2>

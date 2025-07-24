@@ -18,6 +18,7 @@ type ChatHistoryProps = {
   setActiveChatId: (id: string) => void
   createNewChat: () => void
   clearHistory: () => void
+  deleteChat: (id: string) => void;
 }
 
 export function ChatHistory({
@@ -26,6 +27,7 @@ export function ChatHistory({
   setActiveChatId,
   createNewChat,
   clearHistory,
+  deleteChat
 }: ChatHistoryProps) {
   return (
     <Sheet>
@@ -61,14 +63,26 @@ export function ChatHistory({
           <ScrollArea className="flex-1">
             <div className="flex flex-col gap-1 p-2">
               {history.map((chat) => (
-                <Button
-                  key={chat.id}
-                  variant={activeChatId === chat.id ? "secondary" : "ghost"}
-                  className="w-full justify-start truncate"
-                  onClick={() => setActiveChatId(chat.id)}
-                >
-                  {chat.name}
-                </Button>
+                <div key={chat.id} className="group flex items-center gap-1">
+                    <Button
+                    variant={activeChatId === chat.id ? "secondary" : "ghost"}
+                    className="w-full justify-start truncate"
+                    onClick={() => setActiveChatId(chat.id)}
+                    >
+                    {chat.name}
+                    </Button>
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            deleteChat(chat.id)
+                        }}
+                        >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </div>
               ))}
             </div>
           </ScrollArea>
